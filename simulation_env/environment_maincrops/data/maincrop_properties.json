@@ -1,0 +1,163 @@
+{
+  "KLEEGRAS": {
+    "latest sowing": "mid september",
+    "earliest harvest": "mid may",
+    "ground type": ["medium"],
+    "drought resistance": 0,
+    "humus effect": 3
+  },
+  "LUZERNE": {
+    "latest sowing": "mid august",
+    "earliest harvest": "mid may",
+    "ground type": ["light", "medium"],
+    "drought resistance": 1,
+    "humus effect": 3
+  },
+  "ACKERBOHNE": {
+    "latest sowing": "early april",
+    "earliest harvest": "mid july",
+    "ground type": ["medium", "heavy"],
+    "drought resistance": 0,
+    "humus effect": 1
+  },
+  "KÖRNERERBSE": {
+    "latest sowing": "late april",
+    "earliest harvest": "mid july",
+    "ground type": ["medium", "heavy"],
+    "drought resistance": -1,
+    "humus effect": 1
+  },
+  "SOJABOHNE": {
+    "latest sowing": "early may",
+    "earliest harvest": "mid september",
+    "ground type": ["medium"],
+    "drought resistance": -1,
+    "humus effect": 1
+  },
+  "FUTTERLUPINE": {
+    "latest sowing": "early april",
+    "earliest harvest": "late august",
+    "ground type": ["medium"],
+    "drought resistance": 0,
+    "humus effect": 1
+  },
+  "WINTERWEIZEN": {
+    "latest sowing": "mid november",
+    "earliest harvest": "mid july",
+    "ground type": ["medium", "heavy"],
+    "drought resistance": 0,
+    "humus effect": -1
+  },
+  "SOMMERWEIZEN": {
+    "latest sowing": "late march",
+    "earliest harvest": "late july",
+    "ground type": ["medium", "heavy"],
+    "drought resistance": -1,
+    "humus effect": -1
+  },
+  "WINTERHARTWEIZEN": {
+    "latest sowing": "mid october",
+    "earliest harvest": "mid july",
+    "ground type": ["medium", "heavy"],
+    "drought resistance": 0,
+    "humus effect": -1
+  },
+  "WINTERDINKEL": {
+    "latest sowing": "mid november",
+    "earliest harvest": "mid july",
+    "ground type": ["medium", "heavy"],
+    "drought resistance": 0,
+    "humus effect": -1
+  },
+  "WINTERTRITICALE": {
+    "latest sowing": "mid october",
+    "earliest harvest": "mid july",
+    "ground type": ["medium", "heavy"],
+    "drought resistance": 0,
+    "humus effect": -1
+  },
+  "WINTERROGGEN": {
+    "latest sowing": "mid october",
+    "earliest harvest": "mid august",
+    "ground type": ["light", "medium"],
+    "drought resistance": 1,
+    "humus effect": -1
+  },
+  "WINTERGERSTE": {
+    "latest sowing": "mid october",
+    "earliest harvest": "mid july",
+    "ground type": ["light", "medium"],
+    "drought resistance": 1,
+    "humus effect": -1
+  },
+  "SOMMERGERSTE": {
+    "latest sowing": "early april",
+    "earliest harvest": "late july",
+    "ground type": ["medium"],
+    "drought resistance": -1,
+    "humus effect": -1
+  },
+  "SOMMERHAFER": {
+    "latest sowing": "late march",
+    "earliest harvest": "early august",
+    "ground type": ["medium"],
+    "drought resistance": -1,
+    "humus effect": -1
+  },
+  "HIRSE": {
+    "latest sowing": "early june",
+    "earliest harvest": "early october",
+    "ground type": ["light", "medium"],
+    "drought resistance": 1,
+    "humus effect": -1
+  },
+  "SILOmayS": {
+    "latest sowing": "mid may",
+    "earliest harvest": "mid september",
+    "ground type": ["medium", "heavy"],
+    "drought resistance": -1,
+    "humus effect": -2
+  },
+  "KÖRNERmayS": {
+    "latest sowing": "mid may",
+    "earliest harvest": "early september",
+    "ground type": ["medium", "heavy"],
+    "drought resistance": -1,
+    "humus effect": -2
+  },
+  "ZUCKERRÜBEN": {
+    "latest sowing": "mid april",
+    "earliest harvest": "early september",
+    "ground type": ["medium"],
+    "drought resistance": 0,
+    "humus effect": -3
+  },
+  "KARTOFFELN": {
+    "latest sowing": "late may",
+    "earliest harvest": "mid august",
+    "ground type": ["light", "medium"],
+    "drought resistance": -1,
+    "humus effect": -3
+  },
+  "WINTERRAPS": {
+    "latest sowing": "early september",
+    "earliest harvest": "mid july",
+    "ground type": ["medium", "heavy"],
+    "drought resistance": 0,
+    "humus effect": -1
+  },
+  "SONNENBLUMEN": {
+    "latest sowing": "late april",
+    "earliest harvest": "late august",
+    "ground type": ["light", "medium"],
+    "drought resistance": -1,
+    "humus effect": -1
+  },
+  "ÖLKÜRBIS": {
+    "latest sowing": "mid may",
+    "earliest harvest": "early september",
+    "ground type": ["light", "medium"],
+    "drought resistance": -1,
+    "humus effect": -2
+  }
+}

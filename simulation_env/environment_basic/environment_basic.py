@@ -4,7 +4,7 @@ import gymnasium as gym
 from gymnasium import Env
 from gymnasium.spaces import Box, Discrete
 import random
-from .data.data import cropNamesDE, cropNamesEN, suitabilityMatrix_Kolbe, suitabilityMatrix_NDVI, soilNitrogenList, cropYieldList, cropCultivationBreakList, cropLastCultivationList, cropMaxCultivationTimesList, cropCultivationCounterList, cropRootCropList, cropIsLegumeList
+from .data import cropNamesDE, cropNamesEN, suitabilityMatrix_Kolbe, suitabilityMatrix_NDVI, soilNitrogenList, cropYieldList, cropCultivationBreakList, cropLastCultivationList, cropMaxCultivationTimesList, cropCultivationCounterList, cropRootCropList, cropIsLegumeList
 cropLastCultivationList
 
 def convert_state_to_index(state):
