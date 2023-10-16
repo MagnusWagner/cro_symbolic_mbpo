@@ -11,6 +11,8 @@ from collections import namedtuple, deque
 from itertools import count
 import typing
 import numpy as np
+import clingo
+from simulation_env.environment_maincrops.clingo_strings import program_start, program_end
 
 
 
@@ -194,17 +196,21 @@ class Agent:
 class DeepQAgent(Agent):
 
     def __init__(self,
-                 env,
-                 number_hidden_units: int,
-                 optimizer_fn: typing.Callable[[typing.Iterable[nn.Parameter]], optim.Optimizer],
-                 batch_size: int,
-                 buffer_size: int,
-                 alpha: float,
-                 beta_annealing_schedule: typing.Callable[[int], float],
-                 epsilon_decay_schedule: typing.Callable[[int], float],
-                 gamma: float,
-                 update_frequency: int,
-                 seed: int = None) -> None:
+                env,
+                number_hidden_units: int,
+                optimizer_fn: typing.Callable[[typing.Iterable[nn.Parameter]], optim.Optimizer],
+                batch_size: int,
+                buffer_size: int,
+                alpha: float,
+                beta_annealing_schedule: typing.Callable[[int], float],
+                epsilon_decay_schedule: typing.Callable[[int], float],
+                delta_decay_schedule: typing.Callable[[int], float],
+                gamma: float,
+                update_frequency: int,
+                seed: int = None,
+                rule_options = "all", # "all" or "only_break_rules_and_timing"
+                only_filter = False
+                ) -> None:
         """
         Initialize a DeepQAgent.
         
@@ -226,10 +232,13 @@ class DeepQAgent(Agent):
         
         """
         self.env = env
+        self.rule_options = rule_options
         self._state_size = env.observation_space.shape[0]
         self._action_size = env.action_space.n
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.beta = None
+        self.control = clingo.Control()
+        self.only_filter = only_filter
         
         # set seeds for reproducibility
         self._random_state = np.random.RandomState() if seed is None else np.random.RandomState(seed)
@@ -249,6 +258,7 @@ class DeepQAgent(Agent):
         self._memory = PrioritizedExperienceReplayBuffer(**_replay_buffer_kwargs)
         self._beta_annealing_schedule = beta_annealing_schedule
         self._epsilon_decay_schedule = epsilon_decay_schedule
+        self._delta_decay_schedule = delta_decay_schedule
         self._gamma = gamma
         
         # initialize Q-Networks
@@ -295,20 +305,110 @@ class DeepQAgent(Agent):
         else:
             action = self._greedy_policy(state)
         return action
+    
+    def filter_actions(self, filter_information):
+        self.control = clingo.Control()
+        week = filter_information[0]
+        ground_type = filter_information[1]
+        drywet = filter_information[2]
+        previous_crops_selected = filter_information[3:]
 
+        # Example:
+        # ground_type_info(0).
+        # drywet_info(0).
+        # week_info(24).
 
-    def select_action(self,state):
-        sample = random.random()
-        self.eps_threshold = self._epsilon_decay_schedule(self._number_timesteps)
-        # self.eps_threshold = 0.2
-        if sample > self.eps_threshold:
-            with torch.no_grad():
-                # t.max(1) will return the largest column value of each row.
-                # second column on max result is index of where max element was
-                # found, so we pick action with the larger expected reward.
-                return self._online_q_network(state).argmax().view(1, 1)
+        # previous_actions_info(-5,6).
+        # previous_actions_info(-4,1).
+        # previous_actions_info(-3,8).
+        # previous_actions_info(-2,9).
+        # previous_actions_info(-1,1).
+        configuration_string = f"""
+        week_info({int(week)}).
+        ground_type_info({int(ground_type)}).
+        drywet_info({int(drywet)}).
+        """
+        for i, crop in enumerate(previous_crops_selected):
+            flag = False
+            if crop:
+                flag = True
+                configuration_string += f"""previous_actions_info({i-5},{crop}).\n"""
+            if not flag:
+                configuration_string += f"""previous_actions_info({-1},{-1}).\n"""
+        program = program_start + configuration_string + program_end[self.rule_options]
+
+        self.control.add("base", [], program)
+        self.control.ground([("base", [])])
+
+        # Solve the program and print the immediate candidate actions
+        solutions = []
+        def on_model(model):
+            solutions.append(model.symbols(shown=True))
+        self.control.solve(on_model=on_model)
+        if len(solutions) > 0:
+            solution = solutions[0]
+            possible_actions = [symbol.arguments[0].number for symbol in solution]
+            if len(possible_actions) > 0:
+                return possible_actions
+            else:
+                return None
         else:
-            return torch.tensor([self.env.action_space.sample()], device=self._device, dtype=torch.long)
+            return None
+        
+
+    # def select_action(self,state, filter_information):
+    #     sample = random.random()
+    #     sample_delta = random.random()
+    #     self.eps_threshold = self._epsilon_decay_schedule(self._number_timesteps)
+    #     self.delta_threshold = self._delta_decay_schedule(self._number_timesteps)
+    #     # TODO REMOVE
+    #     self.delta_threshold = 1.0
+    #     # self.eps_threshold = 0.2
+    #     if sample > self.eps_threshold:
+    #         possible_actions = self.filter_actions(filter_information)
+    #         if possible_actions:
+    #             possible_actions_tensor = torch.tensor(possible_actions, device=self._device, dtype=torch.int)
+    #         with torch.no_grad():
+    #             # t.max(1) will return the largest column value of each row.
+    #             # second column on max result is index of where max element was
+    #             # found, so we pick action with the larger expected reward.
+    #             action_probabilities = self._online_q_network(state)
+    #             if sample_delta <= self.delta_threshold and possible_actions:
+    #                 mask = torch.ones_like(action_probabilities, dtype=bool)
+    #                 mask[0][possible_actions_tensor] = False
+    #                 action_probabilities[mask] = 0.0
+    #             return action_probabilities.argmax().view(1, 1)
+    #     else:
+    #         return torch.tensor([self.env.action_space.sample()], device=self._device, dtype=torch.long)
+
+    def select_action(self, state, filter_information, greedy = False):
+        sample = random.random()
+        sample_delta = random.random()
+        self.eps_threshold = self._epsilon_decay_schedule(self._number_timesteps)
+        self.delta_threshold = self._delta_decay_schedule(self._number_timesteps)
+        # TODO Remove
+        # self.delta_threshold = 0.9
+        possible_actions = self.filter_actions(filter_information)
+        if possible_actions:
+            possible_actions_tensor = torch.tensor(possible_actions, device=self._device, dtype=torch.int)
+        else:
+            print("No possible actions.")
+        with torch.no_grad():
+            # t.max(1) will return the largest column value of each row.
+            # second column on max result is index of where max element was
+            # found, so we pick action with the larger expected reward.
+            action_probabilities = self._online_q_network(state)
+            if (sample_delta <= self.delta_threshold and not greedy) and possible_actions :
+                mask = torch.ones_like(action_probabilities, dtype=bool)
+                mask[0][possible_actions_tensor] = False
+                action_probabilities[mask] = 0.0
+            if sample > self.eps_threshold or greedy and not self.only_filter:
+                return action_probabilities.argmax().view(1, 1)
+            else:
+                if (sample_delta <= self.delta_threshold or self.only_filter) and possible_actions:
+                    return torch.tensor([random.choice(possible_actions)], device=self._device, dtype=torch.long)
+                else:
+                    return torch.tensor([self.env.action_space.sample()], device=self._device, dtype=torch.long)
         
     def select_greedy_action(self,state):
         # self.eps_threshold = 0.2

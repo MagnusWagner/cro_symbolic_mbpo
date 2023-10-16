@@ -1,8 +1,4 @@
-# from experiments import env_testing_orig
-# env_testing_orig.test_run()
-
-# from experiments import env_testing_pt
-# env_testing_pt.test_run_pytorch()
-
-from experiments import env_testing_prioritized
-env_testing_prioritized.test_run()
+from experiments import env_testing_advanced_prioritized_symbolic
+env_testing_advanced_prioritized_symbolic.test_run()
+# env_testing_advanced_prioritized_symbolic.check_filter()
+# env_testing_advanced_prioritized_symbolic.plot_prices_and_costs()

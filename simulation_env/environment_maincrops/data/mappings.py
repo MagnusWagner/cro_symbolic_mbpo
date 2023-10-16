@@ -2,7 +2,7 @@ crop_mapping_german = {
     0: 'KLEEGRAS',
     1: 'LUZERNE',
     2: 'ACKERBOHNE',
-    3: 'KÖRNERERBSE',
+    3: 'KOERNERERBSE',
     4: 'SOJABOHNE',
     5: 'FUTTERLUPINE',
     6: 'WINTERWEIZEN',
@@ -16,19 +16,19 @@ crop_mapping_german = {
     14: 'SOMMERHAFER',
     15: 'HIRSE',
     16: 'SILOMAIS',
-    17: 'KÖRNERMAIS',
-    18: 'ZUCKERRÜBEN',
+    17: 'KOERNERMAIS',
+    18: 'ZUCKERRUEBEN',
     19: 'KARTOFFELN',
     20: 'WINTERRAPS',
     21: 'SONNENBLUMEN',
-    22: 'ÖLKÜRBIS'
+    22: 'OELKUERBIS'
 }
 
 crop_mapping_german_rev = {
     'KLEEGRAS': 0,
     'LUZERNE': 1,
     'ACKERBOHNE': 2,
-    'KÖRNERERBSE': 3,
+    'KOERNERERBSE': 3,
     'SOJABOHNE': 4,
     'FUTTERLUPINE': 5,
     'WINTERWEIZEN': 6,
@@ -42,12 +42,12 @@ crop_mapping_german_rev = {
     'SOMMERHAFER': 14,
     'HIRSE': 15,
     'SILOMAIS': 16,
-    'KÖRNERMAIS': 17,
-    'ZUCKERRÜBEN': 18,
+    'KOERNERMAIS': 17,
+    'ZUCKERRUEBEN': 18,
     'KARTOFFELN': 19,
     'WINTERRAPS': 20,
     'SONNENBLUMEN': 21,
-    'ÖLKÜRBIS': 22
+    'OELKUERBIS': 22
 }
 
 crop_mapping_eng = {
