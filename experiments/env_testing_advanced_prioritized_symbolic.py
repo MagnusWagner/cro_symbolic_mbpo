@@ -170,12 +170,12 @@ def test_run():
     seed = 43
     env = CropRotationEnv(seq_len=10, seed = seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    num_episodes = 1000
+    num_episodes = 500
     dqn_agent = DeepQAgent(env = env,
                  number_hidden_units = 1024,
-                 optimizer_fn = lambda parameters: optim.AdamW(parameters, lr=2e-6, amsgrad=False, weight_decay = 1e-2),
-                 batch_size = 512,
-                 buffer_size = 100000,
+                 optimizer_fn = lambda parameters: optim.AdamW(parameters, lr=1e-5, amsgrad=False, weight_decay = 1e-2),
+                 batch_size = 16,
+                 buffer_size = 10000,
                  alpha = 0.4,
                  beta_annealing_schedule = lambda x: exponential_annealing_schedule(x, 2e-3),
                  epsilon_decay_schedule = lambda x: epsilon_decay_schedule(x, 0.5, 0.1, num_episodes),
@@ -206,7 +206,7 @@ def test_run():
 
             
             # Store the transition in memory
-            avg_loss = dqn_agent.step(state, action, reward, next_state, done)
+            avg_loss = dqn_agent.step(state, action, reward, next_state, done, filter_information)
 
             # Move to the next state
             losses.append(avg_loss)
