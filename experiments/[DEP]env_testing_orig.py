@@ -27,7 +27,7 @@ def test_random():
             score+=reward
         print('Episode:{} Score:{}'.format(episode, score))
 
-def test_run():
+def test_run(ag):
     env = CropRotationEnv()
     dqn = DQNKeras(env)
     dqn_agent = dqn.build_agent()

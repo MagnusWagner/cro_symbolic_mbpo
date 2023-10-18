@@ -203,7 +203,7 @@ class DeepQAgent(Agent):
                  beta_annealing_schedule: typing.Callable[[int], float],
                  epsilon_decay_schedule: typing.Callable[[int], float],
                  gamma: float,
-                 update_frequency: int,
+                 update_frequency: int = 1,
                  seed: int = None) -> None:
         """
         Initialize a DeepQAgent.
@@ -306,7 +306,10 @@ class DeepQAgent(Agent):
                 # t.max(1) will return the largest column value of each row.
                 # second column on max result is index of where max element was
                 # found, so we pick action with the larger expected reward.
-                return self._online_q_network(state).argmax().view(1, 1)
+                action_probs = self._online_q_network(state)
+                # print(action_probs)
+                action = action_probs.argmax().view(1, 1)
+                return action
         else:
             return torch.tensor([self.env.action_space.sample()], device=self._device, dtype=torch.long)
         
@@ -320,9 +323,6 @@ class DeepQAgent(Agent):
     
     def learn(self, idxs: np.array, experiences: np.array, sampling_weights: np.array):
         """Update the agent's state based on a collection of recent experiences."""
-        t1 = zip(*experiences)
-        t2 = [vs for vs in zip(*experiences)]
-        t3 = [torch.stack(vs,0) for vs in zip(*experiences)]
         states, actions, rewards, next_states, dones = (torch.stack(vs,0).squeeze(1).to(self._device) for vs in zip(*experiences))
         
         # need to add second dimension to some tensors

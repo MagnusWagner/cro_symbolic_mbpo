@@ -20,11 +20,12 @@ def synchronize_q_networks(q_network_1: nn.Module, q_network_2: nn.Module) -> No
     _ = q_network_1.load_state_dict(q_network_2.state_dict())
 
 
-def select_greedy_actions(states: torch.Tensor, q_network: nn.Module, filter_informations:torch.Tensor) -> torch.Tensor:
+def select_greedy_actions(states: torch.Tensor, q_network: nn.Module) -> torch.Tensor:
     """Select the greedy action for the current state given some Q-network."""
-    action_probabilities = q_network(states)
-    action_probabilities = calculate_action_probabilities_for_greedy_policy(action_probabilities, filter_informations)
-    _, actions = action_probabilities.max(dim=1, keepdim=True)
+    action_values = q_network(states)
+    # filter_mask = filter_mask.bool()
+    # action_values[filter_mask] = -5.0
+    _, actions = action_values.max(dim=1, keepdim=True)
 
     return actions
 
@@ -46,12 +47,12 @@ def evaluate_selected_actions(states: torch.Tensor,
 def double_q_learning_update(states: torch.Tensor,
                              rewards: torch.Tensor,
                              dones: torch.Tensor,
-                             filter_informations: torch.Tensor,
+                            #  filter_mask: torch.Tensor,
                              gamma: float,
                              q_network_1: nn.Module,
                              q_network_2: nn.Module) -> torch.Tensor:
     """Double Q-Learning uses Q-network 1 to select actions and Q-network 2 to evaluate the selected actions."""
-    actions = select_greedy_actions(states, q_network_1, filter_informations)
+    actions = select_greedy_actions(states, q_network_1)
     q_values = evaluate_selected_actions(states, actions, rewards, dones, gamma, q_network_2)
     return q_values
 
@@ -61,78 +62,87 @@ def double_q_learning_error(states: torch.Tensor,
                             rewards: torch.Tensor,
                             next_states: torch.Tensor,
                             dones: torch.Tensor,
-                            filter_informations: torch.Tensor,
+                            actions_allowed: torch.Tensor,
                             gamma: float,
                             q_network_1: nn.Module,
                             q_network_2: nn.Module) -> torch.Tensor:
-    expected_q_values = double_q_learning_update(next_states, rewards, dones, filter_informations, gamma, q_network_1, q_network_2)
+
+    # # print average reward over rewards where actions_allowed == 1.0
+    # print(rewards[actions_allowed == 1.0].mean())
+    # print(rewards[actions_allowed == 0.0].mean())
+    expected_q_values = double_q_learning_update(next_states, rewards, dones, gamma, q_network_1, q_network_2)
+    # print(expected_q_values[actions_allowed == 1.0].mean())
+    # print(expected_q_values[actions_allowed == 0.0].mean())
+
     q_values = q_network_1(states).gather(dim=1, index=actions)
+    # print(expected_q_values)
+    # print(q_values)
     delta = expected_q_values - q_values
     return delta
 
-def filter_actions(filter_information):
-        control = clingo.Control()
-        week = filter_information[0]
-        ground_type = filter_information[1]
-        drywet = filter_information[2]
-        previous_crops_selected = filter_information[3:]
+# def filter_actions(filter_information):
+#         control = clingo.Control()
+#         week = filter_information[0]
+#         ground_type = filter_information[1]
+#         drywet = filter_information[2]
+#         previous_crops_selected = filter_information[3:]
 
-        # Example:
-        # ground_type_info(0).
-        # drywet_info(0).
-        # week_info(24).
+#         # Example:
+#         # ground_type_info(0).
+#         # drywet_info(0).
+#         # week_info(24).
 
-        # previous_actions_info(-5,6).
-        # previous_actions_info(-4,1).
-        # previous_actions_info(-3,8).
-        # previous_actions_info(-2,9).
-        # previous_actions_info(-1,1).
-        configuration_string = f"""
-        week_info({int(week)}).
-        ground_type_info({int(ground_type)}).
-        drywet_info({int(drywet)}).
-        """
-        for i, crop in enumerate(previous_crops_selected):
-            flag = False
-            if crop and crop != -1.0:
-                flag = True
-                configuration_string += f"""previous_actions_info({i-5},{int(crop)}).\n"""
-            if not flag:
-                configuration_string += f"""previous_actions_info({-1},{-1}).\n"""
-        program = program_start + configuration_string + program_end["only_break_rules_and_timing"]
+#         # previous_actions_info(-5,6).
+#         # previous_actions_info(-4,1).
+#         # previous_actions_info(-3,8).
+#         # previous_actions_info(-2,9).
+#         # previous_actions_info(-1,1).
+#         configuration_string = f"""
+#         week_info({int(week)}).
+#         ground_type_info({int(ground_type)}).
+#         drywet_info({int(drywet)}).
+#         """
+#         for i, crop in enumerate(previous_crops_selected):
+#             flag = False
+#             if crop and crop != -1.0:
+#                 flag = True
+#                 configuration_string += f"""previous_actions_info({i-5},{int(crop)}).\n"""
+#             if not flag:
+#                 configuration_string += f"""previous_actions_info({-1},{-1}).\n"""
+#         program = program_start + configuration_string + program_end["only_break_rules_and_timing"]
 
-        control.add("base", [], program)
-        control.ground([("base", [])])
+#         control.add("base", [], program)
+#         control.ground([("base", [])])
 
-        # Solve the program and print the immediate candidate actions
-        solutions = []
-        def on_model(model):
-            solutions.append(model.symbols(shown=True))
-        control.solve(on_model=on_model)
-        if len(solutions) > 0:
-            solution = solutions[0]
-            possible_actions = [symbol.arguments[0].number for symbol in solution]
-            if len(possible_actions) > 0:
-                return possible_actions
-            else:
-                return None
-        else:
-            return None
-def calculate_action_probabilities_for_greedy_policy(action_probabilities_array, filter_informations):
-    for i in range(action_probabilities_array.shape[0]):
-        filter_information = filter_informations[0].cpu()
-        possible_actions = filter_actions(filter_information)
-        if possible_actions:
-            possible_actions_tensor = torch.tensor(possible_actions, device=DEVICE, dtype=torch.int)
-        else:
-            print("No possible actions.")
-        if possible_actions:
-            action_probabilities = action_probabilities_array[i].cpu()
-            mask = torch.ones_like(action_probabilities, dtype=bool)
-            mask[possible_actions_tensor] = False
-            action_probabilities[mask] = 0.0
-            action_probabilities_array[i]=action_probabilities.to(DEVICE)
-    return action_probabilities_array
+#         # Solve the program and print the immediate candidate actions
+#         solutions = []
+#         def on_model(model):
+#             solutions.append(model.symbols(shown=True))
+#         control.solve(on_model=on_model)
+#         if len(solutions) > 0:
+#             solution = solutions[0]
+#             possible_actions = [symbol.arguments[0].number for symbol in solution]
+#             if len(possible_actions) > 0:
+#                 return possible_actions
+#             else:
+#                 return None
+#         else:
+#             return None
+# def calculate_action_probabilities_for_greedy_policy(action_probabilities_array, filter_informations):
+#     for i in range(action_probabilities_array.shape[0]):
+#         filter_information = filter_informations[0].cpu()
+#         possible_actions = filter_actions(filter_information)
+#         if possible_actions:
+#             possible_actions_tensor = torch.tensor(possible_actions, device=DEVICE, dtype=torch.int)
+#         else:
+#             print("No possible actions.")
+#         if possible_actions:
+#             action_probabilities = action_probabilities_array[i].cpu()
+#             mask = torch.ones_like(action_probabilities, dtype=bool)
+#             mask[possible_actions_tensor] = False
+#             action_probabilities[mask] = 0.0
+#             action_probabilities_array[i]=action_probabilities.to(DEVICE)
+#     return action_probabilities_array
 
 _field_names = [
     "state",
@@ -140,7 +150,7 @@ _field_names = [
     "reward",
     "next_state",
     "done",
-    "filter_information"
+    "action_allowed"
 ]
 Experience = collections.namedtuple("Experience", field_names=_field_names)
 
@@ -275,7 +285,7 @@ class DeepQAgent(Agent):
                 epsilon_decay_schedule: typing.Callable[[int], float],
                 delta_decay_schedule: typing.Callable[[int], float],
                 gamma: float,
-                update_frequency: int,
+                update_frequency: int = 1,
                 seed: int = None,
                 rule_options = "all", # "all" or "only_break_rules_and_timing"
                 only_filter = False
@@ -467,6 +477,7 @@ class DeepQAgent(Agent):
         sample_delta = random.random()
         self.eps_threshold = self._epsilon_decay_schedule(self._number_timesteps)
         self.delta_threshold = self._delta_decay_schedule(self._number_timesteps)
+        filtered_flag = False
         # TODO Remove
         # self.delta_threshold = 0.9
         possible_actions = self.filter_actions(filter_information)
@@ -478,18 +489,25 @@ class DeepQAgent(Agent):
             # t.max(1) will return the largest column value of each row.
             # second column on max result is index of where max element was
             # found, so we pick action with the larger expected reward.
-            action_probabilities = self._online_q_network(state)
+            action_values = self._online_q_network(state)
             if (sample_delta <= self.delta_threshold and not greedy) and possible_actions :
-                mask = torch.ones_like(action_probabilities, dtype=bool)
+                mask = torch.ones_like(action_values, dtype=bool)
                 mask[0][possible_actions_tensor] = False
-                action_probabilities[mask] = 0.0
+                action_values[mask] = -np.inf
+                filtered_flag = True
             if sample > self.eps_threshold or greedy and not self.only_filter:
-                return action_probabilities.argmax().view(1, 1)
+                selected_action = action_values.argmax().view(1, 1)
+                if possible_actions and selected_action.item() in possible_actions:
+                    filtered_flag = True
+                return selected_action, filtered_flag
             else:
                 if (sample_delta <= self.delta_threshold or self.only_filter) and possible_actions:
-                    return torch.tensor([random.choice(possible_actions)], device=self._device, dtype=torch.long)
+                    return torch.tensor([random.choice(possible_actions)], device=self._device, dtype=torch.long), True
                 else:
-                    return torch.tensor([self.env.action_space.sample()], device=self._device, dtype=torch.long)
+                    selected_action = self.env.action_space.sample()
+                    if possible_actions and selected_action in possible_actions:
+                        filtered_flag = True
+                    return torch.tensor([selected_action], device=self._device, dtype=torch.long), filtered_flag
         
     def select_greedy_action(self,state):
         # self.eps_threshold = 0.2
@@ -501,10 +519,7 @@ class DeepQAgent(Agent):
     
     def learn(self, idxs: np.array, experiences: np.array, sampling_weights: np.array):
         """Update the agent's state based on a collection of recent experiences."""
-        t1 = zip(*experiences)
-        t2 = [vs for vs in zip(*experiences)]
-        t3 = [torch.stack(vs,0) for vs in zip(*experiences)]
-        states, actions, rewards, next_states, dones, filter_informations = (torch.stack(vs,0).squeeze(1).to(self._device) for vs in zip(*experiences))
+        states, actions, rewards, next_states, dones, actions_allowed = (torch.stack(vs,0).squeeze(1).to(self._device) for vs in zip(*experiences))
         
         # need to add second dimension to some tensors
         actions = actions.long()
@@ -515,7 +530,7 @@ class DeepQAgent(Agent):
                                          rewards,
                                          next_states,
                                          dones,
-                                         filter_informations,
+                                         actions_allowed,
                                          self._gamma,
                                          self._online_q_network,
                                          self._target_q_network)
@@ -577,7 +592,8 @@ class DeepQAgent(Agent):
              reward: float,
              next_state: np.array,
              done: bool,
-             filter_information) -> None:
+             filter_information,
+             env) -> None:
         """
         Updates the agent's state based on feedback received from the environment.
         
@@ -596,13 +612,15 @@ class DeepQAgent(Agent):
         else:
             self._number_timesteps += 1
         if next_state is None:
-            next_state = torch.zeros(len(state[0])).view(1,194).to(self._device)
-        for i, entry in enumerate(filter_information):
-            if not entry:
-                filter_information[i] = -1.0
-        filter_information = torch.tensor([filter_information], device=self._device, dtype=torch.float32)
+            next_state = torch.ones(len(state[0])).view(1,194).to(self._device)
+        possible_actions = self.filter_actions(filter_information)
+        filter_mask = torch.zeros(env.action_space.n)
+        if possible_actions:
+            filter_mask[possible_actions] = 1.0
+        filter_mask = filter_mask.to(self._device)
+        action_allowed = filter_mask[action].view(1,1)
         action = action.view(1)
-        experience = Experience(state, action.view(1,1), reward.view(1,1), next_state, torch.tensor([done]).view(1,1), filter_information)
+        experience = Experience(state, action.view(1,1), reward.view(1,1), next_state, torch.tensor([done]).view(1,1), action_allowed)
         self._memory.add(experience)
         if len(self._memory)>=self._memory.batch_size:
             self.beta = self._beta_annealing_schedule(self._number_episodes)

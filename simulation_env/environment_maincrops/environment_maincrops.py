@@ -156,6 +156,29 @@ class CropRotationEnv(Env):
         self.K_costs_gbm_avg = self.maincrop_yields["WINTERWEIZEN"]["Kosten"]["Duenger K"]["avg_gbm"]
         self.K_costs_gbm_std = self.maincrop_yields["WINTERWEIZEN"]["Kosten"]["Duenger K"]["std_gbm"]       
 
+        # Calculate maximum reward
+        average_yields = np.array([self.maincrop_yields[crop_name]["Ertrag"][self.region]["avg"] if self.region in self.maincrop_yields[crop_name]["Ertrag"].keys() else self.maincrop_yields[crop_name]["Ertrag"]["Bundesgebiet"]["avg"] for crop_name in self.maincrop_yields.keys()])
+        # TODO: Add costs
+        # Calculate actual costs for nitrogen, phosphor and kalium fertilizations
+        # maximum amount of nitrogen fertilization per hectar is 170 kg
+        average_N_fertilization_needs = np.array([max(self.maincrop_yields[crop_name]["Duengebedarf N"]["Value"] - self.N,0.0) for crop_name in self.maincrop_yields.keys()])
+        max_N_fertilization_needs = np.ones_like(average_N_fertilization_needs)*170.0
+        average_N_fertilization_needs = np.minimum(average_N_fertilization_needs,max_N_fertilization_needs)
+        average_P_fertilization_needs = np.array([max(self.maincrop_yields[crop_name]["Duengebedarf P"]["Value"] - self.P,0.0) for crop_name in self.maincrop_yields.keys()])
+        average_K_fertilization_needs = np.array([max(self.maincrop_yields[crop_name]["Duengebedarf K"]["Value"] - self.K,0.0) for crop_name in self.maincrop_yields.keys()])
+
+        average_N_fertilization_costs = self.N_costs * average_N_fertilization_needs
+        average_P_fertilization_costs = self.P_costs * average_P_fertilization_needs
+        average_K_fertilization_costs = self.K_costs * average_K_fertilization_needs
+
+        # Calculate profits
+        average_profits = average_yields * self.prices_avg - self.sowing_costs_avg - self.other_costs_avg - average_N_fertilization_costs - average_P_fertilization_costs - average_K_fertilization_costs
+        average_costs = self.sowing_costs_avg + self.other_costs_avg + average_N_fertilization_costs + average_P_fertilization_costs + average_K_fertilization_costs
+        max_reward_idx = average_profits.argmax()
+        min_reward_idx = average_costs.argmax()
+        self.max_reward = average_profits[max_reward_idx]
+        self.min_reward = -(average_costs[min_reward_idx])
+
 
         # Action and observation space are defined by crops in cropNames
         # State size = 1 (0: Nitrogen-Level) + 1 (1: Phosphor-Level) + 1 (2: Kalium-Level) + 1 (3: Week index of year) + 1 (4: Ground type) + 1 (5: Dry/Wet year) + 1 (6: Humus %) + 3 (7-9: fertilizer costs) \n
@@ -222,7 +245,7 @@ class CropRotationEnv(Env):
         # self.cropLastCultivationList[self.state_index] = 1
         # Soil is initialized with a nitrogen level of NMin; current yield and reward are set to 0; crop rotation sequence length set to 10
         self.current_yield = 0
-        self.reward = 0
+        self.reward = 0.0
         self.info = {
             "Previous crops": self.previous_crops_selected,
             "Last profit" : self.reward,
@@ -293,16 +316,20 @@ class CropRotationEnv(Env):
         # Get suitability of crop combination and determine yield; add 10% if it is a suitable combination and 20% if it is a very suitable combination
         # subtract 10% if rather unsuitable, subtract 20% if very unsuitable
         crop_name = self.crop_mapping_german[action]
+
+        if self.region in self.maincrop_yields[crop_name]["Ertrag"]:
+            self.current_yield = self.calculate_next_yield(self.maincrop_yields[crop_name]["Ertrag"][self.region]["avg"], self.maincrop_yields[crop_name]["Ertrag"][self.region]["std"])
+        else:
+            self.current_yield = self.calculate_next_yield(self.maincrop_yields[crop_name]["Ertrag"]["Bundesgebiet"]["avg"], self.maincrop_yields[crop_name]["Ertrag"]["Bundesgebiet"]["std"])
+
         if self.Humus < self.ground_humus_dict["minimum_humus"][self.GroundType]:
             humus_yield_factor = max(0.77,1.0+(self.Humus-self.ground_humus_dict["minimum_humus"][self.GroundType])*0.38)
         else:
             humus_yield_factor = 1.0
         suitability_break_flag = False
-        if self.region in self.maincrop_yields[crop_name]["Ertrag"]:
-            self.current_yield = humus_yield_factor*self.calculate_next_yield(self.maincrop_yields[crop_name]["Ertrag"][self.region]["avg"], self.maincrop_yields[crop_name]["Ertrag"][self.region]["std"])
-        else:
-            self.current_yield = humus_yield_factor*self.calculate_next_yield(self.maincrop_yields[crop_name]["Ertrag"]["Bundesgebiet"]["avg"], self.maincrop_yields[crop_name]["Ertrag"]["Bundesgebiet"]["std"])
-        
+
+        self.current_yield = humus_yield_factor*self.current_yield
+
         # Calculate crop combination factor (previous crop -> current crop)
         crop_combination_factor = 1.0
         if self.previous_crop:
@@ -382,7 +409,9 @@ class CropRotationEnv(Env):
         
 
         # aggregate the crop break factors by multiplication
+        # TODO: change back
         crop_break_factor = np.multiply.reduce(crop_break_factors)
+        # crop_break_factor = min(crop_break_factors)
         
         timing_violation_flag = False
         # calculating the timing factor
@@ -396,7 +425,7 @@ class CropRotationEnv(Env):
         ground_type_violation_flag = False
         # calculating the ground factor
         if self.GroundType in self.maincrop_properties[crop_name]["ground type"]:
-            ground_factor = 1.1
+            ground_factor = 1.0
         else:
             ground_type_violation_flag = True
             ground_factor = 0.9
@@ -441,7 +470,11 @@ class CropRotationEnv(Env):
             actual_yield = min(self.current_yield * unknown_reduction_factor, self.N/self.maincrop_yields[crop_name]["Duengebedarf N"]["Value"])
         else:
             actual_yield = self.current_yield * unknown_reduction_factor
-
+        
+        # TODO remove this
+        actual_yield = self.current_yield * unknown_reduction_factor
+        if total_reduction_factor < 0.4:
+            actual_yield = 0.0
 
 
         # Calculate actual costs for nitrogen, phosphor and kalium fertilizations
@@ -454,7 +487,6 @@ class CropRotationEnv(Env):
         sowing_costs = self.sowing_costs[action]
         other_costs = self.other_costs[action]
         profit = actual_yield * self.prices[action] - self.sowing_costs[action] - self.other_costs[action] - total_N_fertilization_cost - total_P_fertilization_cost - total_K_fertilization_cost
-        
         # Update nitrogen, phosphor and kalium levels
         humus_postdelivery = 20.0 if self.Humus >= 4.0 else 0.0
         if self.previous_crop:
@@ -465,9 +497,14 @@ class CropRotationEnv(Env):
 
         
         # Update of state
-        self.N = self.N - actual_yield*self.maincrop_yields[crop_name]["Duengebedarf N"]["Value"] + humus_postdelivery + precrop_postdelivery + self.maincrop_yields[crop_name]["N-Fixierung"]["Value"]*actual_yield
-        self.P = self.P - actual_yield*self.maincrop_yields[crop_name]["Duengebedarf P"]["Value"]
-        self.K = self.K - actual_yield*self.maincrop_yields[crop_name]["Duengebedarf K"]["Value"]
+        if actual_yield <=self.current_yield:
+            self.N = self.N - actual_yield*self.maincrop_yields[crop_name]["Duengebedarf N"]["Value"] + humus_postdelivery + precrop_postdelivery + self.maincrop_yields[crop_name]["N-Fixierung"]["Value"]*actual_yield
+            self.P = self.P - actual_yield*self.maincrop_yields[crop_name]["Duengebedarf P"]["Value"]
+            self.K = self.K - actual_yield*self.maincrop_yields[crop_name]["Duengebedarf K"]["Value"]
+        else:
+            self.N = self.N - self.current_yield*self.maincrop_yields[crop_name]["Duengebedarf N"]["Value"] + humus_postdelivery + precrop_postdelivery + self.maincrop_yields[crop_name]["N-Fixierung"]["Value"]*self.current_yield
+            self.P = self.P - self.current_yield*self.maincrop_yields[crop_name]["Duengebedarf P"]["Value"]
+            self.K = self.K - self.current_yield*self.maincrop_yields[crop_name]["Duengebedarf K"]["Value"]
         # Humus buildup/loss from selected crop
         self.Humus += self.maincrop_properties[crop_name]["humus equivalent"]*total_reduction_factor*self.humus_equivalent_to_percent_factor*self.corg_to_humus_percent_factor
         # Humus buildup from organic fertilizer ("cattle manure 6% dry mass")
@@ -494,7 +531,8 @@ class CropRotationEnv(Env):
 
 
         # Pushed this to the back to be more deterministic
-        self.DryWet = self.get_drywet(self.DryWetProb)
+        # TODO Add this again to have switching DryWet Probabilities.
+        # self.DryWet = self.get_drywet(self.DryWetProb)
         
         # Calculate next costs and prices
         self.prices = self.calculate_next_price(self.prices, self.prices_gbm_avg, self.prices_gbm_std)
@@ -535,8 +573,9 @@ class CropRotationEnv(Env):
         self.filter_information = np.concatenate((np.array([self.Week, self.GroundType, self.DryWet]),np.array(self.previous_crops_selected)))
 
         # Apply reward and step information
-        self.reward = profit
-
+        self.reward = profit/(self.max_reward-self.min_reward)
+        # print("Crop reduction factors: ",humus_yield_factor, crop_combination_factor, crop_break_factor, timing_factor, ground_factor, drywet_factor)
+        # print("% of actual yield",actual_yield/self.current_yield, "Reward: ",self.reward)
         self.info = {
             "Previous crop": self.crop_mapping_eng[action],
             "Previous crops": self.previous_crops_selected,
@@ -614,7 +653,7 @@ class CropRotationEnv(Env):
                 (self.previous_crops_selected_matrix.flatten())))
         self.filter_information = np.concatenate((np.array([self.Week, self.GroundType, self.DryWet]),np.array(self.previous_crops_selected)))
         self.current_yield = 0
-        self.reward = 0
+        self.reward = 0.0
         self.info = {
             "Previous crops": self.previous_crops_selected,
             "Last profit" : self.reward,

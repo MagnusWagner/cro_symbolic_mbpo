@@ -41,10 +41,7 @@ def test_run():
                  )
 
     num_episodes = 1500     
-
-
-        
-        
+   
     for i_episode in range(num_episodes):
         total_reward = 0
         # Initialize the environment and get it's state
@@ -97,9 +94,4 @@ def test_run():
     plot_experiment(rewards)
     plot_losses(average_losses)
 
-
-
-
-    # reward_list_average = run_experiment(env, dqn_agent, steps)
-    # plot_experiment(steps, env.cropRotationSequenceLengthStatic, reward_list_average)
 

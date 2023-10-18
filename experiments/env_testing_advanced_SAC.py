@@ -10,7 +10,6 @@ import typing
 import pprint
 import optuna
 from optuna.trial import TrialState
-from numpy import random
 
 # Create pprinter
 pp = pprint.PrettyPrinter(indent=4)
@@ -118,8 +117,6 @@ def check_filter():
                  only_filter = True
                  )
     n_broken_rules = []
-    rewards = []
-    broken_rewards = []
     count_broken_rules = 0
     no_possible_actions = 0
     for episode in range(1, num_episodes+1):
@@ -129,24 +126,16 @@ def check_filter():
         while not done:
             possible_actions = dqn_agent.filter_actions(filter_information)
             if possible_actions:
-                x = random.random()
-                if x >= 0.5:
-                    action = np.random.choice(possible_actions)
-                    observation, filter_information, reward, done, info = env.step(action)
-                    rewards.append(reward)
-                    n_broken_rules.append(info["Num broken rules"])
-                    if info["Num broken rules"] > 0:
-                        count_broken_rules += 1
-                else:
-                    action = env.action_space.sample()
-                    observation, filter_information, reward, done, info = env.step(action)
-                    broken_rewards.append(reward)
+                action = np.random.choice(possible_actions)
+                observation, filter_information, reward, done, info = env.step(action)
+                n_broken_rules.append(info["Num broken rules"])
+                if info["Num broken rules"] > 0:
+                    count_broken_rules += 1
             else:
                 action = env.action_space.sample()
                 print(f"No possible action. Taking random action: {action}.")
                 no_possible_actions += 1
                 observation, filter_information, reward, done, info = env.step(action)
-                broken_rewards.append(reward)
     print("Number of events without possible actions:" , no_possible_actions)
     print("% of events with possible actions but broken rules:", count_broken_rules / (len(n_broken_rules) + no_possible_actions) * 100)
     # Plot the number of broken rules for each episode
@@ -155,14 +144,6 @@ def check_filter():
     plt.title('Number of broken rules')
     plt.xlabel('Episode')
     plt.ylabel('Number of broken rules')
-    plt.show()
-    # Plot the rewards and the broken rewards in the same plot with a legend
-    plt.plot(rewards)
-    plt.plot(broken_rewards)
-    plt.legend(["Rewards", "Rewards for broken rules"])
-    plt.title('Rewards')
-    plt.xlabel('Episode')
-    plt.ylabel('Reward')
     plt.show()
 
 
@@ -200,7 +181,7 @@ def test_run():
     seed = 41
     env = CropRotationEnv(seq_len=5, seed = seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    num_episodes = 1000
+    num_episodes = 10000
     dqn_agent = DeepQAgent(env = env,
                  number_hidden_units = param_dict["number_hidden_units"],
                  optimizer_fn = lambda parameters: optim.Adam(parameters, lr=param_dict["lr"]),  #, amsgrad=False, weight_decay = param_dict["weight_decay"]),
