@@ -323,7 +323,7 @@ class CropRotationEnv(Env):
             self.current_yield = self.calculate_next_yield(self.maincrop_yields[crop_name]["Ertrag"]["Bundesgebiet"]["avg"], self.maincrop_yields[crop_name]["Ertrag"]["Bundesgebiet"]["std"])
 
         if self.Humus < self.ground_humus_dict["minimum_humus"][self.GroundType]:
-            humus_yield_factor = max(0.77,1.0+(self.Humus-self.ground_humus_dict["minimum_humus"][self.GroundType])*0.38)
+            humus_yield_factor = max(0.3,1.0+(self.Humus-self.ground_humus_dict["minimum_humus"][self.GroundType])*0.38)
         else:
             humus_yield_factor = 1.0
         suitability_break_flag = False
@@ -475,6 +475,8 @@ class CropRotationEnv(Env):
         actual_yield = self.current_yield * unknown_reduction_factor
         if total_reduction_factor < 0.4:
             actual_yield = 0.0
+            total_reduction_factor = 0.0
+            unknown_reduction_factor = 0.0
 
 
         # Calculate actual costs for nitrogen, phosphor and kalium fertilizations
@@ -613,10 +615,12 @@ class CropRotationEnv(Env):
         self.N = self.NInit
         self.P = 0.0
         self.K = 0.0
-        self.Humus = self.HumusInit
+
         self.Week = 0
         self.cropRotationSequenceLength = self.cropRotationSequenceLengthInit
         self.GroundType = random.choice([-1.0,0.0,1.0])
+        self.HumusInit = self.ground_humus_dict["initial_humus"][self.GroundType]
+        self.Humus = self.HumusInit
         self.DryWetProb = random.uniform(0.2,0.8) # maybe change to stay the same
         self.DryWet = self.get_drywet(self.DryWetProb)
 

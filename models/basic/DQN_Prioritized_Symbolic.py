@@ -490,12 +490,12 @@ class DeepQAgent(Agent):
             # second column on max result is index of where max element was
             # found, so we pick action with the larger expected reward.
             action_values = self._online_q_network(state)
-            if (sample_delta <= self.delta_threshold and not greedy) and possible_actions :
+            if (sample_delta <= self.delta_threshold or greedy) and possible_actions :
                 mask = torch.ones_like(action_values, dtype=bool)
                 mask[0][possible_actions_tensor] = False
                 action_values[mask] = -np.inf
                 filtered_flag = True
-            if sample > self.eps_threshold or greedy and not self.only_filter:
+            if (sample > self.eps_threshold or greedy) and not self.only_filter:
                 selected_action = action_values.argmax().view(1, 1)
                 if possible_actions and selected_action.item() in possible_actions:
                     filtered_flag = True

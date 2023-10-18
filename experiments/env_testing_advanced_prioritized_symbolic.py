@@ -198,7 +198,7 @@ def test_run():
     average_losses = []
 
     seed = 41
-    env = CropRotationEnv(seq_len=5, seed = seed)
+    env = CropRotationEnv(seq_len=8, seed = seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     num_episodes = 1000
     dqn_agent = DeepQAgent(env = env,
@@ -252,7 +252,7 @@ def test_run():
                 break
         print(f"Run number: {i_episode}, Reward: {total_reward}, Epsilon: {dqn_agent.eps_threshold}, Beta: {dqn_agent.beta}, Delta: {dqn_agent.delta_threshold},  Avg loss: {torch.tensor(losses).mean()}")
         print(f"Selected crops: {crops_selected}")
-        print(f"Filtered difference: {filter_dict[True].mean() - filter_dict[False].mean()}")
+        # print(f"Filtered difference: {filter_dict[True].mean() - filter_dict[False].mean()}")
         rewards.append(total_reward)
         average_losses.append(torch.tensor(losses).mean())
     total_reward = 0
@@ -265,8 +265,9 @@ def test_run():
     for t in count():
         losses = []
         action,filtered_flag = dqn_agent.select_action(state, filter_information, greedy=True)
-        observation, filter_information, reward, done, info = env.step(action.item())
+        observation, next_filter_information, reward, done, info = env.step(action.item())
         total_reward += reward
+        filter_information = next_filter_information
         crops_selected.append(info["Previous crop"])
         total_reduction_factors.append(info["Total Reduction Factor"])
         pp.pprint(info)
