@@ -213,7 +213,7 @@ def test_run():
                  gamma = 0.99,
                  update_frequency = 1,
                  seed= seed,
-                 rule_options = "only_break_rules_and_timing",
+                 rule_options = "humus_and_breaks", # "only_break_rules_and_timing",
                  only_filter = False
                  )
     filter_dict = {
@@ -226,8 +226,8 @@ def test_run():
         state, filter_information = env.reset()
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
         crops_selected = []
+        losses = []
         for t in count():
-            losses = []
             action, filtered_flag = dqn_agent.select_action(state, filter_information)
             observation, next_filter_information, reward, done, info = env.step(action.item())
             filter_dict[filtered_flag] = np.append(filter_dict[filtered_flag],reward)
@@ -262,8 +262,8 @@ def test_run():
     total_reward = 0
     crops_selected = []
     total_reduction_factors = []
+    losses = []
     for t in count():
-        losses = []
         action,filtered_flag = dqn_agent.select_action(state, filter_information, greedy=True)
         observation, next_filter_information, reward, done, info = env.step(action.item())
         total_reward += reward
@@ -312,7 +312,7 @@ def objective(trial):
                  gamma = 0.99,
                  update_frequency = 1,
                  seed= seed,
-                 rule_options = "only_break_rules_and_timing",
+                 rule_options = "humus_and_breaks",
                  only_filter = False
                  )
     # average_last_ten_rewards = 0.0
@@ -322,8 +322,8 @@ def objective(trial):
         # Initialize the environment and get it's state
         state, filter_information = env.reset()
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
+        losses = []
         for t in count():
-            losses = []
             action = dqn_agent.select_action(state, filter_information)
             observation, filter_information, reward, done, _ = env.step(action.item())
             

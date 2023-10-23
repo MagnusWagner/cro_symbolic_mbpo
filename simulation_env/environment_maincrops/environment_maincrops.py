@@ -70,9 +70,9 @@ class CropRotationEnv(Env):
         # Source for minimum humus: Landwirt_Nr._13-2015_-_Wie_viel_Humus_braucht_der_Ackerboden
         self.ground_humus_dict = {
             "initial_humus": {
-                -1.0: 2.07,
-                0.0: 2.76,
-                1.0: 3.45
+                -1.0: 2.57,
+                0.0: 3.26,
+                1.0: 3.95
             },
             "minimum_humus": {
                 -1.0: 2.0,
@@ -513,8 +513,20 @@ class CropRotationEnv(Env):
         self.Humus += self.N_fertilization_need/self.organic_fertilizer_dict["nitrogen_per_tonne"]*self.organic_fertilizer_dict["humus_equivalent_factor"]*self.humus_equivalent_to_percent_factor*self.corg_to_humus_percent_factor
         if action in [0,1]:
             self.cropRotationSequenceLength -=2
+            current_crop_selection_vector = np.zeros((2,self.previous_crops_selected_matrix.shape[1]))
+            current_crop_selection_vector[:,action] = 1
+            self.previous_crops_selected_matrix = np.vstack((self.previous_crops_selected_matrix[2:],current_crop_selection_vector))
+            self.previous_crop = action
+            self.previous_crops_selected = np.append(np.append(self.previous_crops_selected[2:], action),action)
+
         else:
             self.cropRotationSequenceLength -=1
+            # Update previous selected crops for state
+            current_crop_selection_vector = np.zeros((1,self.previous_crops_selected_matrix.shape[1]))
+            current_crop_selection_vector[0,action] = 1
+            self.previous_crops_selected_matrix = np.vstack((self.previous_crops_selected_matrix[1:],current_crop_selection_vector))
+            self.previous_crop = action
+            self.previous_crops_selected = np.append(self.previous_crops_selected[1:], action)
         self.Week = self.date_mapping_rev[self.maincrop_properties[crop_name]["earliest harvest"]]
         
 
@@ -524,12 +536,7 @@ class CropRotationEnv(Env):
         else:
             done = False
         
-        # Update previous selected crops for state
-        current_crop_selection_vector = np.zeros((1,self.previous_crops_selected_matrix.shape[1]))
-        current_crop_selection_vector[0,action] = 1
-        self.previous_crops_selected_matrix = np.vstack((self.previous_crops_selected_matrix[1:],current_crop_selection_vector))
-        self.previous_crop = action
-        self.previous_crops_selected = np.append(self.previous_crops_selected[1:], action)
+
 
 
         # Pushed this to the back to be more deterministic
@@ -572,7 +579,7 @@ class CropRotationEnv(Env):
                 (self.previous_crops_selected_matrix.flatten())))
         
         # pp.pprint(self.state_normalized)
-        self.filter_information = np.concatenate((np.array([self.Week, self.GroundType, self.DryWet]),np.array(self.previous_crops_selected)))
+        self.filter_information = np.concatenate((np.array([self.Week, self.GroundType, self.DryWet, self.Humus, self.ground_humus_dict['minimum_humus'][self.GroundType]]),np.array(self.previous_crops_selected)))
 
         # Apply reward and step information
         self.reward = profit/(self.max_reward-self.min_reward)
@@ -655,7 +662,7 @@ class CropRotationEnv(Env):
                 (self.sowing_costs-self.low[10+self.num_crops:10+2*self.num_crops])/(self.high[10+self.num_crops:10+2*self.num_crops]-self.low[10+self.num_crops:10+2*self.num_crops]),
                 (self.other_costs-self.low[10+2*self.num_crops:10+3*self.num_crops])/(self.high[10+2*self.num_crops:10+3*self.num_crops]-self.low[10+2*self.num_crops:10+3*self.num_crops]),
                 (self.previous_crops_selected_matrix.flatten())))
-        self.filter_information = np.concatenate((np.array([self.Week, self.GroundType, self.DryWet]),np.array(self.previous_crops_selected)))
+        self.filter_information = np.concatenate((np.array([self.Week, self.GroundType, self.DryWet, self.Humus, self.ground_humus_dict['minimum_humus'][self.GroundType]]),np.array(self.previous_crops_selected)))
         self.current_yield = 0
         self.reward = 0.0
         self.info = {

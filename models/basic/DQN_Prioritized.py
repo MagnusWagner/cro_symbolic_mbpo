@@ -11,12 +11,16 @@ from collections import namedtuple, deque
 from itertools import count
 import typing
 import numpy as np
+from models.utilities.ReplayBufferPrioritized import PrioritizedExperienceReplayBuffer, Experience
 
 
-
-def synchronize_q_networks(q_network_1: nn.Module, q_network_2: nn.Module) -> None:
+def synchronize_q_networks(q_network_1: nn.Module, q_network_2: nn.Module, tau: float = 1.0) -> None:
     """In place, synchronization of q_network_1 and q_network_2."""
-    _ = q_network_1.load_state_dict(q_network_2.state_dict())
+
+    for target_param, local_param in zip(q_network_1.parameters(), q_network_2.parameters()):
+        target_param.data.copy_(tau * local_param.data + (1 - tau) * target_param.data)
+
+    # _ = q_network_1.load_state_dict(q_network_2.state_dict())
 
 
 def select_greedy_actions(states: torch.Tensor, q_network: nn.Module) -> torch.Tensor:
@@ -65,102 +69,7 @@ def double_q_learning_error(states: torch.Tensor,
     return delta
 
 
-_field_names = [
-    "state",
-    "action",
-    "reward",
-    "next_state",
-    "done"
-]
-Experience = collections.namedtuple("Experience", field_names=_field_names)
 
-
-class PrioritizedExperienceReplayBuffer:
-    """Fixed-size buffer to store priority, Experience tuples."""
-
-    def __init__(self,
-                 batch_size: int,
-                 buffer_size: int,
-                 alpha: float = 0.0,
-                 random_state: np.random.RandomState = None) -> None:
-        """
-        Initialize an ExperienceReplayBuffer object.
-
-        Parameters:
-        -----------
-        buffer_size (int): maximum size of buffer
-        batch_size (int): size of each training batch
-        alpha (float): Strength of prioritized sampling. Default to 0.0 (i.e., uniform sampling).
-        random_state (np.random.RandomState): random number generator.
-        
-        """
-        self._batch_size = batch_size
-        self._buffer_size = buffer_size
-        self._buffer_length = 0 # current number of prioritized experience tuples in buffer
-        self._buffer = np.empty(self._buffer_size, dtype=[("priority", np.float32), ("experience", Experience)])
-        self._alpha = alpha
-        self._random_state = np.random.RandomState() if random_state is None else random_state
-        
-    def __len__(self) -> int:
-        """Current number of prioritized experience tuple stored in buffer."""
-        return self._buffer_length
-
-    @property
-    def alpha(self):
-        """Strength of prioritized sampling."""
-        return self._alpha
-
-    @property
-    def batch_size(self) -> int:
-        """Number of experience samples per training batch."""
-        return self._batch_size
-    
-    @property
-    def buffer_size(self) -> int:
-        """Maximum number of prioritized experience tuples stored in buffer."""
-        return self._buffer_size
-
-    def add(self, experience: Experience) -> None:
-        """Add a new experience to memory."""
-        priority = 1.0 if self.is_empty() else self._buffer["priority"].max()
-        if self.is_full():
-            if priority > self._buffer["priority"].min():
-                idx = self._buffer["priority"].argmin()
-                self._buffer[idx] = (priority, experience)
-            else:
-                pass # low priority experiences should not be included in buffer
-        else:
-            self._buffer[self._buffer_length] = (priority, experience)
-            self._buffer_length += 1
-
-    def is_empty(self) -> bool:
-        """True if the buffer is empty; False otherwise."""
-        return self._buffer_length == 0
-    
-    def is_full(self) -> bool:
-        """True if the buffer is full; False otherwise."""
-        return self._buffer_length == self._buffer_size
-    
-    def sample(self, beta: float) -> typing.Tuple[np.array, np.array, np.array]:
-        """Sample a batch of experiences from memory."""
-        # use sampling scheme to determine which experiences to use for learning
-        ps = self._buffer[:self._buffer_length]["priority"]
-        sampling_probs = ps**self._alpha / np.sum(ps**self._alpha)
-        idxs = self._random_state.choice(np.arange(ps.size),
-                                         size=self._batch_size,
-                                         replace=True,
-                                         p=sampling_probs)
-        
-        # select the experiences and compute sampling weights
-        experiences = self._buffer["experience"][idxs]        
-        weights = (self._buffer_length * sampling_probs[idxs])**-beta
-        normalized_weights = weights / weights.max()
-        
-        return idxs, experiences, normalized_weights
-
-    def update_priorities(self, idxs: np.array, priorities: np.array) -> None:
-        """Update the priorities associated with particular experiences."""
-        self._buffer["priority"][idxs] = priorities
 
 
 
@@ -203,7 +112,7 @@ class DeepQAgent(Agent):
                  beta_annealing_schedule: typing.Callable[[int], float],
                  epsilon_decay_schedule: typing.Callable[[int], float],
                  gamma: float,
-                 update_frequency: int = 1,
+                 tau: int = 1,
                  seed: int = None) -> None:
         """
         Initialize a DeepQAgent.
@@ -225,6 +134,7 @@ class DeepQAgent(Agent):
         seed (int): random seed
         
         """
+        self._tau = tau
         self.env = env
         self._state_size = env.observation_space.shape[0]
         self._action_size = env.action_space.n
@@ -252,7 +162,6 @@ class DeepQAgent(Agent):
         self._gamma = gamma
         
         # initialize Q-Networks
-        self._update_frequency = update_frequency
         self._online_q_network = self._initialize_q_network(number_hidden_units)
         self._target_q_network = self._initialize_q_network(number_hidden_units)
         synchronize_q_networks(self._target_q_network, self._online_q_network)        
@@ -350,14 +259,16 @@ class DeepQAgent(Agent):
         # compute the mean squared loss
         _sampling_weights = (torch.Tensor(sampling_weights)
                                   .view((-1, 1))).to(self._device)
+        #TODO Switch to multiply loss with sampling weights again.
         loss = torch.mean((deltas * _sampling_weights)**2)
+        # loss = torch.mean(deltas**2)
         
         # updates the parameters of the online network
         self._optimizer.zero_grad()
         loss.backward()
         self._optimizer.step()
         
-        synchronize_q_networks(self._target_q_network, self._online_q_network)
+        synchronize_q_networks(self._target_q_network, self._online_q_network, tau=self._tau)
         return loss
     
     def save(self, filepath: str) -> None:
@@ -405,7 +316,6 @@ class DeepQAgent(Agent):
         reward (float): the reward received from the environment.
         next_state (np.array): the resulting state of the environment following the action.
         done (bool): True is the training episode is finised; false otherwise.
-        
         """
         if done:
             self._number_episodes += 1
@@ -413,7 +323,8 @@ class DeepQAgent(Agent):
         else:
             self._number_timesteps += 1
         if next_state is None:
-            next_state = torch.zeros(len(state[0])).view(1,194).to(self._device)
+            # next_state = torch.zeros(len(state[0])).view(1,194).to(self._device)
+            next_state = torch.zeros_like(state).to(self._device)
         action = action.view(1)
         experience = Experience(state, action.view(1,1), reward.view(1,1), next_state, torch.tensor([done]).view(1,1))
         self._memory.add(experience)

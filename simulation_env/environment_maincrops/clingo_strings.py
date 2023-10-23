@@ -8,132 +8,155 @@ property(0, summercrop, 0).
 property(0, drought_resistance, 0).
 property(0, earliest_harvest, 13).
 property(0, latest_sowing, 25).
+property(0, humus_equivalent, 1300).
 property(0, ground_type, 0).
 property(1, summercrop, 0).
 property(1, drought_resistance, 1).
 property(1, earliest_harvest, 13).
 property(1, latest_sowing, 22).
+property(1, humus_equivalent, 1300).
 property(1, ground_type, -1).
 property(1, ground_type, 0).
 property(2, summercrop, 1).
 property(2, drought_resistance, 0).
 property(2, earliest_harvest, 19).
 property(2, latest_sowing, 9).
+property(2, humus_equivalent, 160).
 property(2, ground_type, 0).
 property(2, ground_type, 1).
 property(3, summercrop, 1).
 property(3, drought_resistance, -1).
 property(3, earliest_harvest, 19).
 property(3, latest_sowing, 11).
+property(3, humus_equivalent, 160).
 property(3, ground_type, 0).
 property(3, ground_type, 1).
 property(4, summercrop, 1).
 property(4, drought_resistance, -1).
 property(4, earliest_harvest, 25).
 property(4, latest_sowing, 12).
+property(4, humus_equivalent, 160).
 property(4, ground_type, 0).
 property(5, summercrop, 1).
 property(5, drought_resistance, 0).
 property(5, earliest_harvest, 23).
 property(5, latest_sowing, 9).
+property(5, humus_equivalent, 160).
 property(5, ground_type, 0).
 property(6, summercrop, 0).
 property(6, drought_resistance, 0).
 property(6, earliest_harvest, 19).
 property(6, latest_sowing, 31).
+property(6, humus_equivalent, -400).
 property(6, ground_type, 0).
 property(6, ground_type, 1).
 property(7, summercrop, 1).
 property(7, drought_resistance, -1).
 property(7, earliest_harvest, 20).
 property(7, latest_sowing, 8).
+property(7, humus_equivalent, -400).
 property(7, ground_type, 0).
 property(7, ground_type, 1).
 property(8, summercrop, 0).
 property(8, drought_resistance, 0).
 property(8, earliest_harvest, 19).
 property(8, latest_sowing, 28).
+property(8, humus_equivalent, -400).
 property(8, ground_type, 0).
 property(8, ground_type, 1).
 property(9, summercrop, 0).
 property(9, drought_resistance, 0).
 property(9, earliest_harvest, 19).
 property(9, latest_sowing, 31).
+property(9, humus_equivalent, -400).
 property(9, ground_type, 0).
 property(9, ground_type, 1).
 property(10, summercrop, 0).
 property(10, drought_resistance, 0).
 property(10, earliest_harvest, 19).
 property(10, latest_sowing, 28).
+property(10, humus_equivalent, -400).
 property(10, ground_type, 0).
 property(10, ground_type, 1).
 property(11, summercrop, 0).
 property(11, drought_resistance, 1).
 property(11, earliest_harvest, 22).
 property(11, latest_sowing, 28).
+property(11, humus_equivalent, -400).
 property(11, ground_type, -1).
 property(11, ground_type, 0).
 property(12, summercrop, 0).
 property(12, drought_resistance, 1).
 property(12, earliest_harvest, 19).
 property(12, latest_sowing, 28).
+property(12, humus_equivalent, -400).
 property(12, ground_type, -1).
 property(12, ground_type, 0).
 property(13, summercrop, 1).
 property(13, drought_resistance, -1).
 property(13, earliest_harvest, 20).
 property(13, latest_sowing, 9).
+property(13, humus_equivalent, -400).
 property(13, ground_type, 0).
 property(14, summercrop, 1).
 property(14, drought_resistance, -1).
 property(14, earliest_harvest, 21).
 property(14, latest_sowing, 8).
+property(14, humus_equivalent, -400).
 property(14, ground_type, 0).
 property(15, summercrop, 1).
 property(15, drought_resistance, 1).
 property(15, earliest_harvest, 27).
 property(15, latest_sowing, 15).
+property(15, humus_equivalent, -800).
 property(15, ground_type, -1).
 property(15, ground_type, 0).
 property(16, summercrop, 1).
 property(16, drought_resistance, -1).
 property(16, earliest_harvest, 25).
 property(16, latest_sowing, 13).
+property(16, humus_equivalent, -800).
 property(16, ground_type, 0).
 property(16, ground_type, 1).
 property(17, summercrop, 1).
 property(17, drought_resistance, -1).
 property(17, earliest_harvest, 24).
 property(17, latest_sowing, 13).
+property(17, humus_equivalent, -800).
 property(17, ground_type, 0).
 property(17, ground_type, 1).
 property(18, summercrop, 1).
 property(18, drought_resistance, 0).
 property(18, earliest_harvest, 24).
 property(18, latest_sowing, 10).
+property(18, humus_equivalent, -1300).
 property(18, ground_type, 0).
 property(19, summercrop, 1).
 property(19, drought_resistance, -1).
 property(19, earliest_harvest, 22).
 property(19, latest_sowing, 14).
+property(19, humus_equivalent, -1000).
 property(19, ground_type, -1).
 property(19, ground_type, 0).
 property(20, summercrop, 0).
 property(20, drought_resistance, 0).
 property(20, earliest_harvest, 19).
 property(20, latest_sowing, 24).
+property(20, humus_equivalent, -400).
 property(20, ground_type, 0).
 property(20, ground_type, 1).
 property(21, summercrop, 1).
 property(21, drought_resistance, -1).
 property(21, earliest_harvest, 23).
 property(21, latest_sowing, 11).
+property(21, humus_equivalent, -400).
 property(21, ground_type, -1).
 property(21, ground_type, 0).
 property(22, summercrop, 1).
 property(22, drought_resistance, -1).
 property(22, earliest_harvest, 24).
 property(22, latest_sowing, 13).
+property(22, humus_equivalent, -1000).
 property(22, ground_type, -1).
 property(22, ground_type, 0).
 cropbreak(0, single, -1).
@@ -267,9 +290,31 @@ program_end = {
         allowed_by_drywet(A) :- action(A), property(A, drought_resistance, DR), drywet_info(DW),  DR > -1, DW == 0.
         allowed_by_drywet(A) :- action(A), drywet_info(DW), DW == 1.
         allowed_by_groundtype(A) :- action(A), ground_type_info(GT), property(A, ground_type, GT).
+        blocked_by_humus(A) :- action(A), property(A, humus_equivalent, HE), humus_info(HL, HML), HL+HE <= HML, HE<0.
 
         % Filter solution candidates
-        immediate_candidate(A) :- action(A), not blocked_by_previous(A), not blocked_by_ap_group(A), not blocked_by_mf_group(A), not blocked_by_week(A), allowed_by_drywet(A), allowed_by_groundtype(A).
+        immediate_candidate(A) :- action(A), not blocked_by_previous(A), not blocked_by_ap_group(A), not blocked_by_mf_group(A), not blocked_by_week(A), allowed_by_drywet(A), allowed_by_groundtype(A), not blocked_by_humus(A).
+
+        % Define the output predicate
+        #show immediate_candidate/1.
+        """,
+    "humus_and_breaks": """
+        % Define
+        % Create AP Group filters
+        blocked_by_previous(A) :- action(A), previous_actions_info(X,A), cropbreak(A, single, X).
+        blocked_by_ap_group(A) :- apgroups(A,APG), previous_actions_info(X,Y), ap_group_block(APG, Y, X).
+
+        % Create MF Group filters
+        mf_group_block_active(MFG, Y) :- mf_group_block(MFG, A, Y), previous_actions_info(Y,A).
+        count_mf_group(MFG, C) :- C = #count {Y : mf_group_block_active(MFG, Y)}, mfgroup(MFG).
+        blocked_by_mf_group(A) :- action(A), crop_mfgroups(A, MFG), count_mf_group(MFG, C), mf_group_block_max_count(MFG, MC), C+1 > MC.
+
+        % Create filters for properties
+        blocked_by_week(A) :- action(A), property(A, earliest_harvest, EH), week_info(W),  W > EH-1, property(A, summercrop, SC), SC == 0.
+        blocked_by_humus(A) :- action(A), property(A, humus_equivalent, HE), humus_info(HL, HML), HL+HE <= HML, HE<0.
+
+        % Filter solution candidates
+        immediate_candidate(A) :- action(A), not blocked_by_previous(A), not blocked_by_ap_group(A), not blocked_by_mf_group(A), not blocked_by_week(A), not blocked_by_humus(A).
 
         % Define the output predicate
         #show immediate_candidate/1.

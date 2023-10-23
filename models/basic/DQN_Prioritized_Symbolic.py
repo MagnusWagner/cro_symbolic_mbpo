@@ -390,12 +390,14 @@ class DeepQAgent(Agent):
         week = filter_information[0]
         ground_type = filter_information[1]
         drywet = filter_information[2]
-        previous_crops_selected = filter_information[3:]
-
+        humus_level = int(filter_information[3]*1000)
+        humus_minimum_level = int(filter_information[4]*1000)
+        previous_crops_selected = filter_information[5:]
         # Example:
         # ground_type_info(0).
         # drywet_info(0).
         # week_info(24).
+        # humus_info(2400,2000)
 
         # previous_actions_info(-5,6).
         # previous_actions_info(-4,1).
@@ -406,6 +408,7 @@ class DeepQAgent(Agent):
         week_info({int(week)}).
         ground_type_info({int(ground_type)}).
         drywet_info({int(drywet)}).
+        humus_info({humus_level},{humus_minimum_level}).
         """
         for i, crop in enumerate(previous_crops_selected):
             flag = False

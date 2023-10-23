@@ -16,7 +16,7 @@ def convert_index_to_state(length, index):
   return state
 
 class CropRotationEnv(Env):
-    def __init__(self, seed = 42, seq_len = 7, NMin = 75, NMax = 76, neg_reward = -5000):
+    def __init__(self, seed = 42, seq_len = 7, NMin = 75, NMax = 76, neg_reward = -500):
         random.seed(seed)
         self.cropRotationSequenceLengthStatic = seq_len
         self.NMin = NMin
@@ -154,7 +154,7 @@ class CropRotationEnv(Env):
       self.state_index = action
       self.reward = reward
 
-      info = {}
+      info = {"Previous crop":self.cropNamesEN[self.state_index]}
       
       # Return step information
       return self.state, self.reward, done, info
