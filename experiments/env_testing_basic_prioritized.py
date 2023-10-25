@@ -14,10 +14,7 @@ import math
 
 # Create pprinter
 pp = pprint.PrettyPrinter(indent=4)
-
-def constant_annealing_schedule(n, constant):
-    return constant
-
+TRAINING_EVALUATION_RATIO = 5
 
 def exponential_annealing_schedule(n, rate):
     return 1 - np.exp(-rate * n)
@@ -27,11 +24,6 @@ def epsilon_decay_schedule(steps_done, EPS_START,EPS_END,EPS_DECAY):
 
 
 def test_run(num_episodes = 500):
-    # max_opt_steps = 10
-    
-    rewards = []
-    average_losses = []
-
     param_dict = {   'alpha': 0.4,
     'batch_size': 128,
     'beta': 0.00145,
@@ -59,7 +51,10 @@ def test_run(num_episodes = 500):
                     seed= seed,
                     ) 
    
+    rewards = []
+    average_losses = []
     for i_episode in range(num_episodes):
+        evaluation_flag = i_episode % TRAINING_EVALUATION_RATIO == 0
         total_reward = 0
         # Initialize the environment and get it's state
         state = env.reset()
@@ -67,7 +62,7 @@ def test_run(num_episodes = 500):
         crops_selected = []
         losses = []
         for t in count():
-            action = dqn_agent.select_action(state)
+            action = dqn_agent.select_action(state, greedy=evaluation_flag)
             observation, reward, done, info = env.step(action.item())
             
             # observation, reward, done, truncated, _ = env.step(action.item())
@@ -79,31 +74,27 @@ def test_run(num_episodes = 500):
 
             
             # Store the transition in memory
-            avg_loss = dqn_agent.step(state, action, reward, next_state, done)
-
-            # Move to the next state
-            
-
-            losses.append(avg_loss)
+            if not evaluation_flag:
+                avg_loss = dqn_agent.step(state, action, reward, next_state, done)
+                losses.append(avg_loss)
             state = next_state
             numeric_reward = reward.item()*(max(env.cropYieldList.values())*1.2-env.negativeReward)
             total_reward += numeric_reward
             crops_selected.append(info["Previous crop"])
             if done:
                 break
-        print(f"Run number: {i_episode}, Reward: {total_reward}, Epsilon: {dqn_agent.eps_threshold}, Beta: {dqn_agent.beta},  Average loss: {torch.tensor(losses).mean()}")
-        print(f"Selected crops: {crops_selected}")
-        rewards.append(total_reward)
-        average_losses.append(torch.tensor(losses).mean())
-                
-    
+        if not evaluation_flag:
+            print(f"Run number: {i_episode}, Reward: {total_reward}, Epsilon: {dqn_agent.eps_threshold}, Beta: {dqn_agent.beta},  Average loss: {torch.tensor(losses).mean()}")
+            average_losses.append(torch.tensor(losses).mean())
+        else:
+            print(f"Evaluation: Reward: {total_reward}. Selected crops: {crops_selected}")
+            rewards.append(total_reward)
     print('Complete')
     plot_experiment(rewards)
     plot_losses(np.log(average_losses))
 
 
 def objective(trial, num_episodes = 1000):
-    # max_opt_steps = 10
     lr = trial.suggest_float("lr",1e-8,1e-2,log=True)
     weight_decay = trial.suggest_float("weight_decay",1e-9,1e-1,log=True)
     batch_size = trial.suggest_int("batch_size", 32, 512, log=True)

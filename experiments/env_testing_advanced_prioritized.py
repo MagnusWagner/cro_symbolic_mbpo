@@ -1,6 +1,5 @@
 from simulation_env.environment_maincrops.environment_maincrops import CropRotationEnv
 from models.basic.DQN_Prioritized import DeepQAgent as DQN_Prioritized
-# from models.basic.DQNPytorch import DeepQAgent as DQN
 import numpy as np
 from utils.experiment_utils import run_experiment, plot_experiment, plot_losses
 import torch
@@ -15,12 +14,6 @@ import math
 
 # Create pprinter
 pp = pprint.PrettyPrinter(indent=4)
-
-
-
-def constant_annealing_schedule(n, constant):
-    return constant
-
 
 def exponential_annealing_schedule(n, rate):
     return 1 - np.exp(-rate * n)
@@ -47,22 +40,18 @@ def test_run(agent_type = "DQN" # "DQN", "DQN_Prioritized"
     env = CropRotationEnv(seq_len=10, seed = seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     num_episodes = 100
-    if agent_type == "DQN_Prioritized":
-        dqn_agent = DQN_Prioritized(env = env,
-                    number_hidden_units = param_dict["number_hidden_units"],
-                    optimizer_fn = lambda parameters: optim.AdamW(parameters, lr=param_dict["lr"], amsgrad=False, weight_decay = param_dict["weight_decay"]),
-                    batch_size = param_dict["batch_size"],
-                    buffer_size = param_dict["buffer_size"],
-                    alpha = param_dict["alpha"],
-                    beta_annealing_schedule = lambda x: exponential_annealing_schedule(x, param_dict["beta"]),
-                    epsilon_decay_schedule = lambda x: epsilon_decay_schedule(x, param_dict["epsilon_max"], 0.1, num_episodes),
-                    gamma = 0.99,
-                    update_frequency = 1,
-                    seed= seed,
-                    )
-    else:
-        print("No agent selected.")
-        raise NotImplementedError
+    dqn_agent = DQN_Prioritized(env = env,
+                number_hidden_units = param_dict["number_hidden_units"],
+                optimizer_fn = lambda parameters: optim.AdamW(parameters, lr=param_dict["lr"], amsgrad=False, weight_decay = param_dict["weight_decay"]),
+                batch_size = param_dict["batch_size"],
+                buffer_size = param_dict["buffer_size"],
+                alpha = param_dict["alpha"],
+                beta_annealing_schedule = lambda x: exponential_annealing_schedule(x, param_dict["beta"]),
+                epsilon_decay_schedule = lambda x: epsilon_decay_schedule(x, param_dict["epsilon_max"], 0.1, num_episodes),
+                gamma = 0.99,
+                update_frequency = 1,
+                seed= seed
+                )
 
     for i_episode in range(num_episodes):
         total_reward = 0
@@ -82,7 +71,6 @@ def test_run(agent_type = "DQN" # "DQN", "DQN_Prioritized"
             else:
                 next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
 
-            
             # Store the transition in memory
             avg_loss = dqn_agent.step(state, action, reward, next_state, done)
 
@@ -127,7 +115,6 @@ def test_run(agent_type = "DQN" # "DQN", "DQN_Prioritized"
 
 
 def objective(trial, num_episodes = 1000):
-    # max_opt_steps = 10
     lr = trial.suggest_float("lr",1e-8,1e-2,log=True)
     weight_decay = trial.suggest_float("weight_decay",1e-9,1e-1,log=True)
     batch_size = trial.suggest_int("batch_size", 32, 1024, log=True)
@@ -140,7 +127,7 @@ def objective(trial, num_episodes = 1000):
     epsilon_max = trial.suggest_float("epsilon_max",0.2,0.9)
 
     seed = 43
-    env = CropRotationEnv(seq_len=5, seed = seed)
+    env = CropRotationEnv(seq_len=10, seed = seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dqn_agent = DQN_Prioritized(env = env,
                  number_hidden_units = number_hidden_units,

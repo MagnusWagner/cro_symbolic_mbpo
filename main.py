@@ -18,8 +18,8 @@
 # env_testing_basic_prioritized.run_optuna_study(num_episodes=500, n_trials=50, timeout=600)
 
 # from experiments import env_testing_basic_sac
-# env_testing_basic_sac.test_run(num_episodes = 2000)
-# env_testing_basic_sac.run_optuna_study(num_episodes=500, n_trials=50, timeout=600)
+# env_testing_basic_sac.test_run(num_episodes = 1000)
+# env_testing_basic_sac.run_optuna_study(num_episodes=1000, n_trials=50, timeout=1800)
 
 
 ######################################

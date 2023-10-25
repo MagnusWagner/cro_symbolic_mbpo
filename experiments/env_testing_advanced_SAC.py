@@ -10,7 +10,7 @@ import typing
 import pprint
 import optuna
 from optuna.trial import TrialState
-
+import math
 # Create pprinter
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -20,8 +20,6 @@ def exponential_annealing_schedule(n, rate):
 def epsilon_decay_schedule(steps_done, EPS_START,EPS_END,EPS_DECAY):
     return EPS_END + (EPS_START - EPS_END) * np.exp(-1. * steps_done / EPS_DECAY)
 
-def delta_decay_schedule(steps_done, DELTA_START,DELTA_END,DELTA_DECAY):
-    return DELTA_END + (DELTA_START - DELTA_END) * np.exp(-1. * steps_done / DELTA_DECAY)
 
 
 def test_run():

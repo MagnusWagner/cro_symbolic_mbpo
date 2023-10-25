@@ -11,31 +11,10 @@ import pprint
 import optuna
 from optuna.trial import TrialState
 from numpy import random
+import math
 
 # Create pprinter
 pp = pprint.PrettyPrinter(indent=4)
-
-def test_print():
-    # Initialize crop rotation environment
-    env = CropRotationEnv()
-    env.render()
-    
-def test_random():
-    env = CropRotationEnv()
-    # Generate 5 random crop rotations without training (for enviornment testing)
-    episodes = 100
-    for episode in range(1, episodes+1):
-        state, filter_information = env.reset()
-        done = False
-        score = 0 
-        while not done:
-            action = env.action_space.sample()
-            observation, filter_information, reward, done, _ = env.step(action)
-            score+=reward
-            # pp.pprint(info)
-
-        print('Episode:{} Score:{}'.format(episode, score))
-
 
 def plot_prices_and_costs():
     env = CropRotationEnv(seed = 43, seq_len = 10)
@@ -238,7 +217,6 @@ def test_run():
             else:
                 next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
 
-            
             # Store the transition in memory
             avg_loss = dqn_agent.step(state, action, reward, next_state, done, filter_information, env)
 
@@ -264,7 +242,7 @@ def test_run():
     total_reduction_factors = []
     losses = []
     for t in count():
-        action,filtered_flag = dqn_agent.select_action(state, filter_information, greedy=True)
+        action, filtered_flag = dqn_agent.select_action(state, filter_information, greedy=True)
         observation, next_filter_information, reward, done, info = env.step(action.item())
         total_reward += reward
         filter_information = next_filter_information
@@ -281,12 +259,11 @@ def test_run():
     print("Total reduction factors:", total_reduction_factors)
     print('Complete')
     plot_experiment(rewards)
-    plot_losses(average_losses)
+    plot_losses(np.log(average_losses))
 
-def objective(trial):
-    # max_opt_steps = 10
+def objective(trial, num_episodes = 1000):
     lr = trial.suggest_float("lr",1e-8,1e-2,log=True)
-    weight_decay = trial.suggest_float("weight_decay",1e-8,1e-1,log=True)
+    weight_decay = trial.suggest_float("weight_decay",1e-9,1e-1,log=True)
     batch_size = trial.suggest_int("batch_size", 32, 1024, log=True)
     buffer_size = trial.suggest_int("buffer_size", 1000, 100000, log=True)
     number_hidden_units = trial.suggest_int("number_hidden_units", 32, 1024, log=True)
@@ -315,8 +292,8 @@ def objective(trial):
                  rule_options = "humus_and_breaks",
                  only_filter = False
                  )
-    # average_last_ten_rewards = 0.0
-    average_last_ten_losses = 100.0
+    average_last_20_losses = 100.0
+    average_last_20_rewards = 0.0
     for i_episode in range(num_episodes):
         total_reward = 0
         # Initialize the environment and get it's state
@@ -344,37 +321,31 @@ def objective(trial):
             total_reward += reward.item()
             if done:
                 break
-        # average_last_ten_rewards = (average_last_ten_rewards * 9 + total_reward) / 10
-        average_last_ten_losses = (average_last_ten_losses * 9 + avg_loss) / 10
+        average_last_20_losses = (average_last_20_losses * 19 + avg_loss) / 20
+        average_last_20_rewards = (average_last_20_rewards * 19 + total_reward) / 20
         print(f"Run number: {i_episode}, Reward: {total_reward}, Epsilon: {dqn_agent.eps_threshold}, Beta: {dqn_agent.beta}, Delta: {dqn_agent.delta_threshold},  Avg loss: {torch.tensor(losses).mean()}")
         rewards.append(total_reward)
         average_losses.append(torch.tensor(losses).mean())
-        # trial.report(average_last_ten_rewards, i_episode)
-        trial.report(average_last_ten_losses, i_episode)
-        if trial.should_prune():
-            raise optuna.exceptions.TrialPruned()
     print('Complete')
-    # return average_last_ten_rewards
-    return average_last_ten_losses
+    return math.log(average_last_20_losses), average_last_20_rewards
 
-def run_optuna_study():
-    # study = optuna.create_study(direction="maximize")
-    study = optuna.create_study(direction="minimize")
-    study.optimize(objective, n_trials=100, timeout=600)
-    pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
-    complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
+def run_optuna_study(num_episodes=500, n_trials=30, timeout=600):
+    study = optuna.create_study(directions=["minimize","maximize"])
+    # create partial function from objective function including num_episodes
+    objective_partial = lambda trial: objective(trial, num_episodes)
+    study.optimize(objective_partial, n_trials=n_trials, timeout=timeout)
 
     print("Study statistics: ")
     print("  Number of finished trials: ", len(study.trials))
-    print("  Number of pruned trials: ", len(pruned_trials))
-    print("  Number of complete trials: ", len(complete_trials))
 
-    print("Best trial:")
-    trial = study.best_trial
+    
+    print(f"Number of trials on the Pareto front: {len(study.best_trials)}")
 
-    print("  Value: ", trial.value)
-
-    print("  Params: ")
-    for key, value in trial.params.items():
-        print("    {}: {}".format(key, value))
+    trial_with_highest_avg_rewards = max(study.best_trials, key=lambda t: t.values[1])
+    print(f"Trial with highest avg rewards: ")
+    print(f"\tnumber: {trial_with_highest_avg_rewards.number}")
+    print(f"\tvalues: {trial_with_highest_avg_rewards.values}")
+    print(f"\tparams:")
+    pp.pprint(trial_with_highest_avg_rewards.params)
+    optuna.visualization.plot_pareto_front(study, target_names=["Average final losses", "Average final rewards"])
 
