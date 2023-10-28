@@ -103,25 +103,7 @@ class SACAgent:
         return discrete_action
 
 
-    def step(self, state, action, reward, next_state, done):
-        if done:
-            self._number_episodes += 1
-            self._number_timesteps += 1
-        else:
-            self._number_timesteps += 1
-        if next_state is None:
-            next_state = torch.zeros_like(state).to(self._device)
-        action = torch.tensor([action]).to(self._device)
-        experience = Experience(state, action.view(1,1), reward.view(1,1), next_state, torch.tensor([done]).view(1,1))
-        self._memory.add(experience)
-        if len(self._memory)>=self._memory.batch_size:
-            self.beta = self._beta_annealing_schedule(self._number_episodes)
-            idxs, experiences, sampling_weights = self._memory.sample(self.beta)
-            critic_loss, critic2_loss, actor_loss, temperature_loss = self.learn(idxs, experiences, sampling_weights)
-            return critic_loss, critic2_loss, actor_loss, temperature_loss
-        return 0.0, 0.0, 0.0, 0.0
-        # transition = (state, discrete_action, reward, next_state, done)
-        # self.learn(transition)
+
 
 
     def learn(self, idxs: np.array, experiences: np.array, sampling_weights: np.array):
@@ -246,3 +228,23 @@ class SACAgent:
         q_values = self._critic_local(state)
         q_values2 = self._critic_local2(state)
         return torch.min(q_values, q_values2)
+    
+    def step(self, state, action, reward, next_state, done):
+        if done:
+            self._number_episodes += 1
+            self._number_timesteps += 1
+        else:
+            self._number_timesteps += 1
+        if next_state is None:
+            next_state = torch.zeros_like(state).to(self._device)
+        action = torch.tensor([action]).to(self._device)
+        experience = Experience(state, action.view(1,1), reward.view(1,1), next_state, torch.tensor([done]).view(1,1))
+        self._memory.add(experience)
+        if len(self._memory)>=self._memory.batch_size:
+            self.beta = self._beta_annealing_schedule(self._number_episodes)
+            idxs, experiences, sampling_weights = self._memory.sample(self.beta)
+            critic_loss, critic2_loss, actor_loss, temperature_loss = self.learn(idxs, experiences, sampling_weights)
+            return critic_loss, critic2_loss, actor_loss, temperature_loss
+        return 0.0, 0.0, 0.0, 0.0
+        # transition = (state, discrete_action, reward, next_state, done)
+        # self.learn(transition)

@@ -11,13 +11,17 @@ from collections import namedtuple, deque
 from itertools import count
 import typing
 import numpy as np
+from models.utilities.ReplayBufferPrioritized import PrioritizedExperienceReplayBufferSymbolic, Experience_Symbolic
 import clingo
 from simulation_env.environment_maincrops.clingo_strings import program_start, program_end
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def synchronize_q_networks(q_network_1: nn.Module, q_network_2: nn.Module) -> None:
+def synchronize_q_networks(q_network_1: nn.Module, q_network_2: nn.Module, tau: float = 1.0) -> None:
     """In place, synchronization of q_network_1 and q_network_2."""
-    _ = q_network_1.load_state_dict(q_network_2.state_dict())
+    for target_param, local_param in zip(q_network_1.parameters(), q_network_2.parameters()):
+        target_param.data.copy_(tau * local_param.data + (1 - tau) * target_param.data)
+
+    # _ = q_network_1.load_state_dict(q_network_2.state_dict())
 
 
 def select_greedy_actions(states: torch.Tensor, q_network: nn.Module) -> torch.Tensor:
@@ -26,7 +30,6 @@ def select_greedy_actions(states: torch.Tensor, q_network: nn.Module) -> torch.T
     # filter_mask = filter_mask.bool()
     # action_values[filter_mask] = -5.0
     _, actions = action_values.max(dim=1, keepdim=True)
-
     return actions
 
 
@@ -80,169 +83,6 @@ def double_q_learning_error(states: torch.Tensor,
     delta = expected_q_values - q_values
     return delta
 
-# def filter_actions(filter_information):
-#         control = clingo.Control()
-#         week = filter_information[0]
-#         ground_type = filter_information[1]
-#         drywet = filter_information[2]
-#         previous_crops_selected = filter_information[3:]
-
-#         # Example:
-#         # ground_type_info(0).
-#         # drywet_info(0).
-#         # week_info(24).
-
-#         # previous_actions_info(-5,6).
-#         # previous_actions_info(-4,1).
-#         # previous_actions_info(-3,8).
-#         # previous_actions_info(-2,9).
-#         # previous_actions_info(-1,1).
-#         configuration_string = f"""
-#         week_info({int(week)}).
-#         ground_type_info({int(ground_type)}).
-#         drywet_info({int(drywet)}).
-#         """
-#         for i, crop in enumerate(previous_crops_selected):
-#             flag = False
-#             if crop and crop != -1.0:
-#                 flag = True
-#                 configuration_string += f"""previous_actions_info({i-5},{int(crop)}).\n"""
-#             if not flag:
-#                 configuration_string += f"""previous_actions_info({-1},{-1}).\n"""
-#         program = program_start + configuration_string + program_end["only_break_rules_and_timing"]
-
-#         control.add("base", [], program)
-#         control.ground([("base", [])])
-
-#         # Solve the program and print the immediate candidate actions
-#         solutions = []
-#         def on_model(model):
-#             solutions.append(model.symbols(shown=True))
-#         control.solve(on_model=on_model)
-#         if len(solutions) > 0:
-#             solution = solutions[0]
-#             possible_actions = [symbol.arguments[0].number for symbol in solution]
-#             if len(possible_actions) > 0:
-#                 return possible_actions
-#             else:
-#                 return None
-#         else:
-#             return None
-# def calculate_action_probabilities_for_greedy_policy(action_probabilities_array, filter_informations):
-#     for i in range(action_probabilities_array.shape[0]):
-#         filter_information = filter_informations[0].cpu()
-#         possible_actions = filter_actions(filter_information)
-#         if possible_actions:
-#             possible_actions_tensor = torch.tensor(possible_actions, device=DEVICE, dtype=torch.int)
-#         else:
-#             print("No possible actions.")
-#         if possible_actions:
-#             action_probabilities = action_probabilities_array[i].cpu()
-#             mask = torch.ones_like(action_probabilities, dtype=bool)
-#             mask[possible_actions_tensor] = False
-#             action_probabilities[mask] = 0.0
-#             action_probabilities_array[i]=action_probabilities.to(DEVICE)
-#     return action_probabilities_array
-
-_field_names = [
-    "state",
-    "action",
-    "reward",
-    "next_state",
-    "done",
-    "action_allowed"
-]
-Experience = collections.namedtuple("Experience", field_names=_field_names)
-
-
-class PrioritizedExperienceReplayBuffer:
-    """Fixed-size buffer to store priority, Experience tuples."""
-
-    def __init__(self,
-                 batch_size: int,
-                 buffer_size: int,
-                 alpha: float = 0.0,
-                 random_state: np.random.RandomState = None) -> None:
-        """
-        Initialize an ExperienceReplayBuffer object.
-
-        Parameters:
-        -----------
-        buffer_size (int): maximum size of buffer
-        batch_size (int): size of each training batch
-        alpha (float): Strength of prioritized sampling. Default to 0.0 (i.e., uniform sampling).
-        random_state (np.random.RandomState): random number generator.
-        
-        """
-        self._batch_size = batch_size
-        self._buffer_size = buffer_size
-        self._buffer_length = 0 # current number of prioritized experience tuples in buffer
-        self._buffer = np.empty(self._buffer_size, dtype=[("priority", np.float32), ("experience", Experience)])
-        self._alpha = alpha
-        self._random_state = np.random.RandomState() if random_state is None else random_state
-        
-    def __len__(self) -> int:
-        """Current number of prioritized experience tuple stored in buffer."""
-        return self._buffer_length
-
-    @property
-    def alpha(self):
-        """Strength of prioritized sampling."""
-        return self._alpha
-
-    @property
-    def batch_size(self) -> int:
-        """Number of experience samples per training batch."""
-        return self._batch_size
-    
-    @property
-    def buffer_size(self) -> int:
-        """Maximum number of prioritized experience tuples stored in buffer."""
-        return self._buffer_size
-
-    def add(self, experience: Experience) -> None:
-        """Add a new experience to memory."""
-        priority = 1.0 if self.is_empty() else self._buffer["priority"].max()
-        if self.is_full():
-            if priority > self._buffer["priority"].min():
-                idx = self._buffer["priority"].argmin()
-                self._buffer[idx] = (priority, experience)
-            else:
-                pass # low priority experiences should not be included in buffer
-        else:
-            self._buffer[self._buffer_length] = (priority, experience)
-            self._buffer_length += 1
-
-    def is_empty(self) -> bool:
-        """True if the buffer is empty; False otherwise."""
-        return self._buffer_length == 0
-    
-    def is_full(self) -> bool:
-        """True if the buffer is full; False otherwise."""
-        return self._buffer_length == self._buffer_size
-    
-    def sample(self, beta: float) -> typing.Tuple[np.array, np.array, np.array]:
-        """Sample a batch of experiences from memory."""
-        # use sampling scheme to determine which experiences to use for learning
-        ps = self._buffer[:self._buffer_length]["priority"]
-        sampling_probs = ps**self._alpha / np.sum(ps**self._alpha)
-        idxs = self._random_state.choice(np.arange(ps.size),
-                                         size=self._batch_size,
-                                         replace=True,
-                                         p=sampling_probs)
-        
-        # select the experiences and compute sampling weights
-        experiences = self._buffer["experience"][idxs]        
-        weights = (self._buffer_length * sampling_probs[idxs])**-beta
-        normalized_weights = weights / weights.max()
-        
-        return idxs, experiences, normalized_weights
-
-    def update_priorities(self, idxs: np.array, priorities: np.array) -> None:
-        """Update the priorities associated with particular experiences."""
-        self._buffer["priority"][idxs] = priorities
-
-
 
 A = typing.TypeVar('A', bound='Agent')
 
@@ -253,7 +93,7 @@ class Agent:
         """Rule for choosing an action given the current state of the environment."""
         raise NotImplementedError
         
-    def learn(self, experiences: typing.List[Experience]) -> None:
+    def learn(self, experiences: typing.List[Experience_Symbolic]) -> None:
         """Update the agent's state based on a collection of recent experiences."""
         raise NotImplementedError
 
@@ -285,7 +125,7 @@ class DeepQAgent(Agent):
                 epsilon_decay_schedule: typing.Callable[[int], float],
                 delta_decay_schedule: typing.Callable[[int], float],
                 gamma: float,
-                update_frequency: int = 1,
+                tau: int = 1,
                 seed: int = None,
                 rule_options = "all", # "all" or "only_break_rules_and_timing"
                 only_filter = False
@@ -318,6 +158,7 @@ class DeepQAgent(Agent):
         self.beta = None
         self.control = clingo.Control()
         self.only_filter = only_filter
+        self._tau = tau
         
         # set seeds for reproducibility
         self._random_state = np.random.RandomState() if seed is None else np.random.RandomState(seed)
@@ -334,14 +175,13 @@ class DeepQAgent(Agent):
             "buffer_size": buffer_size,
             "random_state": self._random_state
         }
-        self._memory = PrioritizedExperienceReplayBuffer(**_replay_buffer_kwargs)
+        self._memory = PrioritizedExperienceReplayBufferSymbolic(**_replay_buffer_kwargs)
         self._beta_annealing_schedule = beta_annealing_schedule
         self._epsilon_decay_schedule = epsilon_decay_schedule
         self._delta_decay_schedule = delta_decay_schedule
         self._gamma = gamma
         
         # initialize Q-Networks
-        self._update_frequency = update_frequency
         self._online_q_network = self._initialize_q_network(number_hidden_units)
         self._target_q_network = self._initialize_q_network(number_hidden_units)
         synchronize_q_networks(self._target_q_network, self._online_q_network)        
@@ -370,21 +210,6 @@ class DeepQAgent(Agent):
         """Choose an action uniformly at random."""
         return self._random_state.randint(self._action_size)
         
-    # def _greedy_policy(self, state: torch.Tensor) -> int:
-    #     """Choose an action that maximizes the action_values given the current state."""
-    #     actions = select_greedy_actions(state, self._online_q_network)
-    #     action = (actions.cpu()  # actions might reside on the GPU!
-    #                      .item())
-    #     return action
-    
-    # def _epsilon_greedy_policy(self, state: torch.Tensor, epsilon: float) -> int:
-    #     """With probability epsilon explore randomly; otherwise exploit knowledge optimally."""
-    #     if self._random_state.random() < epsilon:
-    #         action = self._uniform_random_policy(state)
-    #     else:
-    #         action = self._greedy_policy(state)
-    #     return action
-    
     def filter_actions(self, filter_information):
         self.control = clingo.Control()
         week = filter_information[0]
@@ -412,7 +237,7 @@ class DeepQAgent(Agent):
         """
         for i, crop in enumerate(previous_crops_selected):
             flag = False
-            if crop and crop != -1.0:
+            if crop is not None and crop != -1.0:
                 flag = True
                 configuration_string += f"""previous_actions_info({i-5},{int(crop)}).\n"""
             if not flag:
@@ -437,45 +262,9 @@ class DeepQAgent(Agent):
         else:
             return None
         
-    # def filter_actions_for_greedy_policy(self, action_probabilities, filter_informations):
-    #     self.control = clingo.Control()
-    #     for i in range(action_probabilities.shape[0]):
-    #         week = filter_informations[i][0].cpu()
-    #         ground_type = filter_informations[i][1].cpu()
-    #         drywet = filter_informations[i][2].cpu()
-    #         previous_crops_selected = filter_informations[i][3:].cpu()
-    #         configuration_string = f"""
-    #         week_info({int(week)}).
-    #         ground_type_info({int(ground_type)}).
-    #         drywet_info({int(drywet)}).
-    #         """
-    #         for i, crop in enumerate(previous_crops_selected):
-    #             flag = False
-    #             if crop:
-    #                 flag = True
-    #                 configuration_string += f"""previous_actions_info({i-5},{crop}).\n"""
-    #             if not flag:
-    #                 configuration_string += f"""previous_actions_info({-1},{-1}).\n"""
-    #         program = program_start + configuration_string + program_end[self.rule_options]
-    #         self.control.add("base", [], program)
-    #         self.control.ground([("base", [])])
+              
 
-    #         # Solve the program and print the immediate candidate actions
-    #         solutions = []
-    #         def on_model(model):
-    #             solutions.append(model.symbols(shown=True))
-    #         self.control.solve(on_model=on_model)
-    #         if len(solutions) > 0:
-    #             solution = solutions[0]
-    #             possible_actions = [symbol.arguments[0].number for symbol in solution]
-    #             if len(possible_actions) > 0:
-    #                 return possible_actions
-    #             else:
-    #                 return None
-    #         else:
-    #             return None                
-
-    def select_action(self, state, filter_information, greedy = False):
+    def select_action(self, state, filter_information, evaluation_flag = False):
         sample = random.random()
         sample_delta = random.random()
         self.eps_threshold = self._epsilon_decay_schedule(self._number_timesteps)
@@ -493,32 +282,26 @@ class DeepQAgent(Agent):
             # second column on max result is index of where max element was
             # found, so we pick action with the larger expected reward.
             action_values = self._online_q_network(state)
-            if (sample_delta <= self.delta_threshold or greedy) and possible_actions :
+            if (sample_delta <= self.delta_threshold or evaluation_flag) and possible_actions :
                 mask = torch.ones_like(action_values, dtype=bool)
                 mask[0][possible_actions_tensor] = False
                 action_values[mask] = -np.inf
                 filtered_flag = True
-            if (sample > self.eps_threshold or greedy) and not self.only_filter:
+            if (sample > self.eps_threshold or evaluation_flag) and not self.only_filter:
                 selected_action = action_values.argmax().view(1, 1)
                 if possible_actions and selected_action.item() in possible_actions:
                     filtered_flag = True
-                return selected_action, filtered_flag
+                return selected_action.item(), filtered_flag
             else:
                 if (sample_delta <= self.delta_threshold or self.only_filter) and possible_actions:
-                    return torch.tensor([random.choice(possible_actions)], device=self._device, dtype=torch.long), True
+                    # return torch.tensor([random.choice(possible_actions)], device=self._device, dtype=torch.long), True
+                    return random.choice(possible_actions), True
                 else:
                     selected_action = self.env.action_space.sample()
                     if possible_actions and selected_action in possible_actions:
                         filtered_flag = True
-                    return torch.tensor([selected_action], device=self._device, dtype=torch.long), filtered_flag
-        
-    def select_greedy_action(self,state):
-        # self.eps_threshold = 0.2
-        with torch.no_grad():
-            # t.max(1) will return the largest column value of each row.
-            # second column on max result is index of where max element was
-            # found, so we pick action with the larger expected reward.
-            return self._online_q_network(state).argmax().view(1, 1)
+                    # return torch.tensor([selected_action], device=self._device, dtype=torch.long), filtered_flag
+                    return selected_action, filtered_flag
     
     def learn(self, idxs: np.array, experiences: np.array, sampling_weights: np.array):
         """Update the agent's state based on a collection of recent experiences."""
@@ -557,7 +340,7 @@ class DeepQAgent(Agent):
         loss.backward()
         self._optimizer.step()
         
-        synchronize_q_networks(self._target_q_network, self._online_q_network)
+        synchronize_q_networks(self._target_q_network, self._online_q_network, tau=self._tau)
         return loss
     
     def save(self, filepath: str) -> None:
@@ -607,7 +390,8 @@ class DeepQAgent(Agent):
         reward (float): the reward received from the environment.
         next_state (np.array): the resulting state of the environment following the action.
         done (bool): True is the training episode is finised; false otherwise.
-        
+        filter_information (numpy.array): information about the current state of the environment.
+        env (gymnasium.Environment): the environment in which the agent is acting.
         """
         if done:
             self._number_episodes += 1
@@ -615,15 +399,15 @@ class DeepQAgent(Agent):
         else:
             self._number_timesteps += 1
         if next_state is None:
-            next_state = torch.ones(len(state[0])).view(1,194).to(self._device)
+            next_state = torch.zeros_like(state).to(self._device)
+        action = torch.tensor([action]).to(self._device)
         possible_actions = self.filter_actions(filter_information)
         filter_mask = torch.zeros(env.action_space.n)
         if possible_actions:
             filter_mask[possible_actions] = 1.0
         filter_mask = filter_mask.to(self._device)
         action_allowed = filter_mask[action].view(1,1)
-        action = action.view(1)
-        experience = Experience(state, action.view(1,1), reward.view(1,1), next_state, torch.tensor([done]).view(1,1), action_allowed)
+        experience = Experience_Symbolic(state, action.view(1,1), reward.view(1,1), next_state, torch.tensor([done]).view(1,1), action_allowed)
         self._memory.add(experience)
         if len(self._memory)>=self._memory.batch_size:
             self.beta = self._beta_annealing_schedule(self._number_episodes)

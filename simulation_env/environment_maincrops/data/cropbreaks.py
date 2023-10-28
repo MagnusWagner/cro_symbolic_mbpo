@@ -97,6 +97,7 @@ cropbreaks = {
         "crop": "SONNENBLUMEN",
     },
     22: {"AP": 2, "AP Groups": [], "MF Groups": [], "crop": "ÖLKÜRBIS"},
+    23: {"AP": 0, "AP Groups": [], "MF Groups": [], "crop": "GRASSILAGE"},
 }
 
 mf_groups = {

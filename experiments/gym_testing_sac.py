@@ -78,7 +78,7 @@ def test_run(num_episodes = 100):
             action = sac_agent.select_action(state, evaluation_flag=evaluation_episode)
             observation, reward, done, _, info = env.step(action)
             
-            # observation, reward, done, truncated, _ = env.step(action.item())
+            # observation, reward, done, truncated, _ = env.step(action)
             reward = torch.tensor([reward], device=device)
             if done:
                 next_state = None
@@ -106,9 +106,9 @@ def test_run(num_episodes = 100):
             if done or t> 200:
                 break
         if not evaluation_episode:
-            print(f"Run number: {i_episode}, Temperature: {sac_agent._temperature}, Beta: {sac_agent.beta},  Average critic1 loss: {torch.round(torch.tensor(critic1_losses).mean(),decimals=8)}, Average critic2 loss: {torch.round(torch.tensor(critic2_losses).mean(),decimals=8)}, Average actor loss: {torch.round(torch.tensor(actor_losses).mean(),decimals=8)}, Average temperature loss: {torch.round(torch.tensor(temperature_losses).mean(),decimals=8)}")
+            print(f"#{i_episode}, Temperature: {sac_agent._temperature}, Beta: {sac_agent.beta},  Average critic1 loss: {torch.round(torch.tensor(critic1_losses).mean(),decimals=8)}, Average critic2 loss: {torch.round(torch.tensor(critic2_losses).mean(),decimals=8)}, Average actor loss: {torch.round(torch.tensor(actor_losses).mean(),decimals=8)}, Average temperature loss: {torch.round(torch.tensor(temperature_losses).mean(),decimals=8)}")
         else:
-            print(f"Run number: {i_episode}, Reward: {total_reward}")
+            print(f"#{i_episode}, Reward: {total_reward}")
         # print(f"Selected crops: {crops_selected}")
         rewards.append(total_reward)
         avg_critic1_losses.append(torch.tensor(critic1_losses).mean())
@@ -161,9 +161,9 @@ def test_run(num_episodes = 100):
 #         for t in count():
 
 #             action = dqn_agent.select_action(state)
-#             observation, reward, done, info = env.step(action.item())
+#             observation, reward, done, info = env.step(action)
             
-#             # observation, reward, done, truncated, _ = env.step(action.item())
+#             # observation, reward, done, truncated, _ = env.step(action)
 #             reward = torch.tensor([reward], device=device)
 #             if done:
 #                 next_state = None
@@ -186,7 +186,7 @@ def test_run(num_episodes = 100):
 #                 break
 #         average_last_20_losses = (average_last_20_losses * 19 + avg_loss) / 20
 #         average_last_20_rewards = (average_last_20_rewards * 19 + total_reward) / 20
-#         print(f"Run number: {i_episode}, Reward: {total_reward}, Epsilon: {dqn_agent.eps_threshold}, Beta: {dqn_agent.beta},  Average loss: {torch.tensor(losses).mean()}")
+#         print(f"#{i_episode}, Reward: {total_reward}, Epsilon: {dqn_agent.eps_threshold}, Beta: {dqn_agent.beta},  Average loss: {torch.tensor(losses).mean()}")
 #         print(f"Selected crops: {crops_selected}")
 #         rewards.append(total_reward)
 #         average_losses.append(torch.tensor(losses).mean())

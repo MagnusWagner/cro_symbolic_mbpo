@@ -1,9 +1,7 @@
 program_start = """
 % Define the input data as facts
-action(0..22).
 previous_time(-5..-1).
-% Define the input data as facts
-action(0..22).
+action(0..23).
 property(0, summercrop, 0).
 property(0, drought_resistance, 0).
 property(0, earliest_harvest, 13).
@@ -159,6 +157,14 @@ property(22, latest_sowing, 13).
 property(22, humus_equivalent, -1000).
 property(22, ground_type, -1).
 property(22, ground_type, 0).
+property(23, summercrop, 0).
+property(23, drought_resistance, 1).
+property(23, earliest_harvest, 13).
+property(23, latest_sowing, 25).
+property(23, humus_equivalent, 1300).
+property(23, ground_type, -1).
+property(23, ground_type, 0).
+property(23, ground_type, 1).
 cropbreak(0, single, -1).
 cropbreak(0, single, -2).
 cropbreak(0, single, -3).
@@ -275,68 +281,68 @@ ap_group_block(gerste, (12;13), -2..-1).
 
 program_end = {
     "all": """
-        % Define
-        % Create AP Group filters
-        blocked_by_previous(A) :- action(A), previous_actions_info(X,A), cropbreak(A, single, X).
-        blocked_by_ap_group(A) :- apgroups(A,APG), previous_actions_info(X,Y), ap_group_block(APG, Y, X).
+% Define
+% Create AP Group filters
+blocked_by_previous(A) :- action(A), previous_actions_info(X,A), cropbreak(A, single, X).
+blocked_by_ap_group(A) :- apgroups(A,APG), previous_actions_info(X,Y), ap_group_block(APG, Y, X).
 
-        % Create MF Group filters
-        mf_group_block_active(MFG, Y) :- mf_group_block(MFG, A, Y), previous_actions_info(Y,A).
-        count_mf_group(MFG, C) :- C = #count {Y : mf_group_block_active(MFG, Y)}, mfgroup(MFG).
-        blocked_by_mf_group(A) :- action(A), crop_mfgroups(A, MFG), count_mf_group(MFG, C), mf_group_block_max_count(MFG, MC), C+1 > MC.
+% Create MF Group filters
+mf_group_block_active(MFG, Y) :- mf_group_block(MFG, A, Y), previous_actions_info(Y,A).
+count_mf_group(MFG, C) :- C = #count {Y : mf_group_block_active(MFG, Y)}, mfgroup(MFG).
+blocked_by_mf_group(A) :- action(A), crop_mfgroups(A, MFG), count_mf_group(MFG, C), mf_group_block_max_count(MFG, MC), C+1 > MC.
 
-        % Create filters for properties
-        blocked_by_week(A) :- action(A), property(A, earliest_harvest, EH), week_info(W),  W > EH-1, property(A, summercrop, SC), SC == 0.
-        allowed_by_drywet(A) :- action(A), property(A, drought_resistance, DR), drywet_info(DW),  DR > -1, DW == 0.
-        allowed_by_drywet(A) :- action(A), drywet_info(DW), DW == 1.
-        allowed_by_groundtype(A) :- action(A), ground_type_info(GT), property(A, ground_type, GT).
-        blocked_by_humus(A) :- action(A), property(A, humus_equivalent, HE), humus_info(HL, HML), HL+HE <= HML, HE<0.
+% Create filters for properties
+blocked_by_week(A) :- action(A), property(A, latest_sowing, LS), week_info(W),  W > LS-1, property(A, summercrop, SC), SC == 0.
+allowed_by_drywet(A) :- action(A), property(A, drought_resistance, DR), drywet_info(DW),  DR > -1, DW == 0.
+allowed_by_drywet(A) :- action(A), drywet_info(DW), DW == 1.
+allowed_by_groundtype(A) :- action(A), ground_type_info(GT), property(A, ground_type, GT).
+blocked_by_humus(A) :- action(A), property(A, humus_equivalent, HE), humus_info(HL, HML), HL+HE <= HML, HE<0.
 
-        % Filter solution candidates
-        immediate_candidate(A) :- action(A), not blocked_by_previous(A), not blocked_by_ap_group(A), not blocked_by_mf_group(A), not blocked_by_week(A), allowed_by_drywet(A), allowed_by_groundtype(A), not blocked_by_humus(A).
+% Filter solution candidates
+immediate_candidate(A) :- action(A), not blocked_by_previous(A), not blocked_by_ap_group(A), not blocked_by_mf_group(A), not blocked_by_week(A), allowed_by_drywet(A), allowed_by_groundtype(A), not blocked_by_humus(A).
 
-        % Define the output predicate
-        #show immediate_candidate/1.
+% Define the output predicate
+#show immediate_candidate/1.
         """,
     "humus_and_breaks": """
-        % Define
-        % Create AP Group filters
-        blocked_by_previous(A) :- action(A), previous_actions_info(X,A), cropbreak(A, single, X).
-        blocked_by_ap_group(A) :- apgroups(A,APG), previous_actions_info(X,Y), ap_group_block(APG, Y, X).
+% Define
+% Create AP Group filters
+blocked_by_previous(A) :- action(A), previous_actions_info(X,A), cropbreak(A, single, X).
+blocked_by_ap_group(A) :- apgroups(A,APG), previous_actions_info(X,Y), ap_group_block(APG, Y, X).
 
-        % Create MF Group filters
-        mf_group_block_active(MFG, Y) :- mf_group_block(MFG, A, Y), previous_actions_info(Y,A).
-        count_mf_group(MFG, C) :- C = #count {Y : mf_group_block_active(MFG, Y)}, mfgroup(MFG).
-        blocked_by_mf_group(A) :- action(A), crop_mfgroups(A, MFG), count_mf_group(MFG, C), mf_group_block_max_count(MFG, MC), C+1 > MC.
+% Create MF Group filters
+mf_group_block_active(MFG, Y) :- mf_group_block(MFG, A, Y), previous_actions_info(Y,A).
+count_mf_group(MFG, C) :- C = #count {Y : mf_group_block_active(MFG, Y)}, mfgroup(MFG).
+blocked_by_mf_group(A) :- action(A), crop_mfgroups(A, MFG), count_mf_group(MFG, C), mf_group_block_max_count(MFG, MC), C+1 > MC.
 
-        % Create filters for properties
-        blocked_by_week(A) :- action(A), property(A, earliest_harvest, EH), week_info(W),  W > EH-1, property(A, summercrop, SC), SC == 0.
-        blocked_by_humus(A) :- action(A), property(A, humus_equivalent, HE), humus_info(HL, HML), HL+HE <= HML, HE<0.
+% Create filters for properties
+blocked_by_week(A) :- action(A), property(A, latest_sowing, LS), week_info(W),  W > LS-1, property(A, summercrop, SC), SC == 0.
+blocked_by_humus(A) :- action(A), property(A, humus_equivalent, HE), humus_info(HL, HML), HL+HE <= HML, HE<0.
 
-        % Filter solution candidates
-        immediate_candidate(A) :- action(A), not blocked_by_previous(A), not blocked_by_ap_group(A), not blocked_by_mf_group(A), not blocked_by_week(A), not blocked_by_humus(A).
+% Filter solution candidates
+immediate_candidate(A) :- action(A), not blocked_by_previous(A), not blocked_by_ap_group(A), not blocked_by_mf_group(A), not blocked_by_week(A), not blocked_by_humus(A).
 
-        % Define the output predicate
-        #show immediate_candidate/1.
+% Define the output predicate
+#show immediate_candidate/1.
         """,
     "only_break_rules_and_timing": """
-        % Define
-        % Create AP Group filters
-        blocked_by_previous(A) :- action(A), previous_actions_info(X,A), cropbreak(A, single, X).
-        blocked_by_ap_group(A) :- apgroups(A,APG), previous_actions_info(X,Y), ap_group_block(APG, Y, X).
+% Define
+% Create AP Group filters
+blocked_by_previous(A) :- action(A), previous_actions_info(X,A), cropbreak(A, single, X).
+blocked_by_ap_group(A) :- apgroups(A,APG), previous_actions_info(X,Y), ap_group_block(APG, Y, X).
 
-        % Create MF Group filters
-        mf_group_block_active(MFG, Y) :- mf_group_block(MFG, A, Y), previous_actions_info(Y,A).
-        count_mf_group(MFG, C) :- C = #count {Y : mf_group_block_active(MFG, Y)}, mfgroup(MFG).
-        blocked_by_mf_group(A) :- action(A), crop_mfgroups(A, MFG), count_mf_group(MFG, C), mf_group_block_max_count(MFG, MC), C+1 > MC.
+% Create MF Group filters
+mf_group_block_active(MFG, Y) :- mf_group_block(MFG, A, Y), previous_actions_info(Y,A).
+count_mf_group(MFG, C) :- C = #count {Y : mf_group_block_active(MFG, Y)}, mfgroup(MFG).
+blocked_by_mf_group(A) :- action(A), crop_mfgroups(A, MFG), count_mf_group(MFG, C), mf_group_block_max_count(MFG, MC), C+1 > MC.
 
-        % Create filters for properties
-        blocked_by_week(A) :- action(A), property(A, earliest_harvest, EH), week_info(W),  W > EH-1, property(A, summercrop, SC), SC == 0.
+% Create filters for properties
+blocked_by_week(A) :- action(A), property(A, latest_sowing, LS), week_info(W),  W > LS-1, property(A, summercrop, SC), SC == 0.
 
-        % Filter solution candidates
-        immediate_candidate(A) :- action(A), not blocked_by_previous(A), not blocked_by_ap_group(A), not blocked_by_mf_group(A), not blocked_by_week(A).
+% Filter solution candidates
+immediate_candidate(A) :- action(A), not blocked_by_previous(A), not blocked_by_ap_group(A), not blocked_by_mf_group(A), not blocked_by_week(A).
 
-        % Define the output predicate
-        #show immediate_candidate/1.
+% Define the output predicate
+#show immediate_candidate/1.
         """
 }

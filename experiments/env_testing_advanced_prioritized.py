@@ -1,16 +1,13 @@
-from simulation_env.environment_maincrops.environment_maincrops import CropRotationEnv
-from models.basic.DQN_Prioritized import DeepQAgent as DQN_Prioritized
 import numpy as np
 from utils.experiment_utils import run_experiment, plot_experiment, plot_losses
 import torch
 from torch import optim
 from itertools import count
-import collections
-import typing
 import pprint
 import optuna
 from optuna.trial import TrialState
 import math
+from experiments.utilities import single_training_run
 
 # Create pprinter
 pp = pprint.PrettyPrinter(indent=4)
@@ -22,96 +19,81 @@ def epsilon_decay_schedule(steps_done, EPS_START,EPS_END,EPS_DECAY):
     return EPS_END + (EPS_START - EPS_END) * np.exp(-1. * steps_done / EPS_DECAY)
 
 
-def test_run(agent_type = "DQN" # "DQN", "DQN_Prioritized"
-             ):
-
-    param_dict = {   'alpha': 0.6682581518763132,
-    'batch_size': 512,
-    'beta': 0.007583023190822477,
-    'buffer_size': 15756,
-    'epsilon_max': 0.8765399831991354,
-    'lr': 3.595681414558709e-08,
-    'number_hidden_units': 32,
-    'weight_decay': 5.796144878637577e-05}
-    rewards = []
-    average_losses = []
-
-    seed = 43
-    env = CropRotationEnv(seq_len=10, seed = seed)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    num_episodes = 100
-    dqn_agent = DQN_Prioritized(env = env,
-                number_hidden_units = param_dict["number_hidden_units"],
-                optimizer_fn = lambda parameters: optim.AdamW(parameters, lr=param_dict["lr"], amsgrad=False, weight_decay = param_dict["weight_decay"]),
-                batch_size = param_dict["batch_size"],
-                buffer_size = param_dict["buffer_size"],
-                alpha = param_dict["alpha"],
-                beta_annealing_schedule = lambda x: exponential_annealing_schedule(x, param_dict["beta"]),
-                epsilon_decay_schedule = lambda x: epsilon_decay_schedule(x, param_dict["epsilon_max"], 0.1, num_episodes),
-                gamma = 0.99,
-                update_frequency = 1,
-                seed= seed
-                )
-
-    for i_episode in range(num_episodes):
-        total_reward = 0
-        # Initialize the environment and get it's state
-        state, _ = env.reset()
-        state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
-        crops_selected = []
-        losses = []
-        for t in count():
-            action = dqn_agent.select_action(state)
-            observation, _, reward, done, info = env.step(action.item())
-            
-            # observation, reward, done, truncated, _ = env.step(action.item())
-            reward = torch.tensor([reward], device=device)
-            if done:
-                next_state = None
-            else:
-                next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
-
-            # Store the transition in memory
-            avg_loss = dqn_agent.step(state, action, reward, next_state, done)
-
-            # Move to the next state
-            losses.append(avg_loss)
-            state = next_state
-            total_reward += reward.item()
-            crops_selected.append(info["Previous crop"])
-            if done:
-                break
-        print(f"Run number: {i_episode}, Reward: {total_reward}, Epsilon: {dqn_agent.eps_threshold}, Beta: {dqn_agent.beta},  Average loss: {torch.tensor(losses).mean()}")
-        print(f"Selected crops: {crops_selected}")
-        rewards.append(total_reward)
-        average_losses.append(torch.tensor(losses).mean())
-    total_reward = 0
-    # Initialize the environment and get it's state
-    state, filter_information = env.reset()
-    state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
-    total_reward = 0
-    crops_selected = []
-    total_reduction_factors = []
-    losses = []
-    for t in count():
-        action = dqn_agent.select_greedy_action(state)
-        observation, _, reward, done, info = env.step(action.item())
-        total_reward += reward
-        crops_selected.append(info["Previous crop"])
-        total_reduction_factors.append(info["Total Reduction Factor"])
-        # observation, reward, done, truncated, _ = env.step(action.item())
-        pp.pprint(info)
-        if done:
-            next_state = None
-            break
-        else:
-            next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
-    print("Total reward:",total_reward)
-    print("Crops selected:", crops_selected)
-    print("Total reduction factors:", total_reduction_factors)
-    print('Complete')
-    plot_experiment(rewards)
-    plot_losses(np.log(average_losses))
+def test_run(num_episodes = 500, DryWetInit = None, GroundTypeInit = None, deterministic = None, seq_len = 5, seed = 43):
+    param_dict = {   'alpha': 0.5554887943329508,
+    'batch_size': 381,
+    'beta': 0.0010198361240556146,
+    'buffer_size': 5212,
+    'epsilon_max': 0.7954054344061976,
+    'lr': 2.4401561648489245e-05,
+    'number_hidden_units': 926,
+    'tau': 0.2906968953074242,
+    'weight_decay': 0.0019988460143838633}
+    training_eval_ratio = 5
+    single_training_run(
+        param_dict,
+        agent_type = "prioritized", #["prioritized","sac","prioritized_symbolic","sac_symbolic"]
+        environment_type = "advanced",
+        rule_options = None,
+        num_episodes = num_episodes,
+        training_eval_ratio = training_eval_ratio,
+        DryWetInit = DryWetInit,
+        GroundTypeInit = GroundTypeInit,
+        deterministic = deterministic,
+        seq_len = seq_len,
+        seed = seed)
+#     seed = 43
+#     env = CropRotationEnv(seq_len=10, seed = seed)
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#     agent = DQN_Prioritized(env = env,
+#                 number_hidden_units = param_dict["number_hidden_units"],
+#                 optimizer_fn = lambda parameters: optim.AdamW(parameters, lr=param_dict["lr"], amsgrad=False, weight_decay = param_dict["weight_decay"]),
+#                 batch_size = param_dict["batch_size"],
+#                 buffer_size = param_dict["buffer_size"],
+#                 alpha = param_dict["alpha"],
+#                 beta_annealing_schedule = lambda x: exponential_annealing_schedule(x, param_dict["beta"]),
+#                 epsilon_decay_schedule = lambda x: epsilon_decay_schedule(x, param_dict["epsilon_max"], 0.01, num_episodes),
+#                 gamma = 0.99,
+#                 tau = param_dict["tau"],
+#                 seed= seed
+#                 )
+#     rewards = []
+#     average_losses = []
+#     for i_episode in range(num_episodes):
+#         evaluation_flag = i_episode % TRAINING_EVALUATION_RATIO == 0
+#         total_reward = 0
+#         # Initialize the environment and get it's state
+#         state, _ = env.reset()
+#         reward_factor = 5.0/(env.max_reward-env.min_reward)
+#         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
+#         crops_selected = []
+#         losses = []
+#         for t in count():
+#             action = agent.select_action(state, evaluation_flag)
+#             observation, _, reward, done, info = env.step(action)
+#             reward_tensor = torch.tensor([reward], device=device)*reward_factor
+#             if done:
+#                 next_state = None
+#             else:
+#                 next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
+#             if not evaluation_flag:
+#                 avg_loss = agent.step(state, action, reward_tensor, next_state, done)
+#                 losses.append(avg_loss)
+#             # Move to the next state
+#             state = next_state
+#             total_reward += reward
+#             crops_selected.append(info["Previous crop"])
+#             if done:
+#                 break
+#         if not evaluation_flag:
+#             print(f"#{i_episode}, Reward: {total_reward}, Epsilon: {agent.eps_threshold}, Beta: {agent.beta},  Average loss: {torch.tensor(losses).mean()}")
+#             average_losses.append(torch.tensor(losses).mean())
+#         else:
+#             print(f"#{i_episode}, Evaluation: Reward: {total_reward}. Selected crops: {crops_selected}")
+#             rewards.append(total_reward)
+#     print('Complete')
+#     plot_experiment(rewards)
+#     plot_losses(np.log(average_losses))
 
 
 def objective(trial, num_episodes = 1000):
@@ -125,35 +107,38 @@ def objective(trial, num_episodes = 1000):
     alpha = trial.suggest_float("alpha",0.1,0.9)
     beta = trial.suggest_float("beta",1e-3,1e-2, log=True)
     epsilon_max = trial.suggest_float("epsilon_max",0.2,0.9)
+    tau = trial.suggest_float("tau",0.01,0.5)
 
     seed = 43
     env = CropRotationEnv(seq_len=10, seed = seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dqn_agent = DQN_Prioritized(env = env,
-                 number_hidden_units = number_hidden_units,
-                 optimizer_fn = lambda parameters: optim.AdamW(parameters, lr=lr, amsgrad=False, weight_decay = weight_decay),
-                 batch_size = batch_size,
-                 buffer_size = buffer_size,
-                 alpha = alpha,
-                 beta_annealing_schedule = lambda x: exponential_annealing_schedule(x, beta),
-                 epsilon_decay_schedule = lambda x: epsilon_decay_schedule(x, epsilon_max, 0.1, num_episodes),
-                 gamma = 0.99,
-                 seed= seed,
-                 )
+                    number_hidden_units = number_hidden_units,
+                    optimizer_fn = lambda parameters: optim.AdamW(parameters, lr=lr, amsgrad=False, weight_decay = weight_decay),
+                    batch_size = batch_size,
+                    buffer_size = buffer_size,
+                    alpha = alpha,
+                    beta_annealing_schedule = lambda x: exponential_annealing_schedule(x, beta),
+                    epsilon_decay_schedule = lambda x: epsilon_decay_schedule(x, epsilon_max, 0.01, num_episodes),
+                    gamma = 0.99,
+                    tau = tau,
+                    seed= seed,
+                    )
     average_last_20_losses = 100.0
-    average_last_20_rewards = 0.0
+    average_last_10_rewards = 0.0
     for i_episode in range(num_episodes):
+        evaluation_flag = i_episode % TRAINING_EVALUATION_RATIO == 0
         total_reward = 0
         # Initialize the environment and get it's state
         state, _ = env.reset()
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
+        crops_selected = []
         losses = []
         for t in count():
-
-            action = dqn_agent.select_action(state)
-            observation, _, reward, done, _ = env.step(action.item())
+            action = dqn_agent.select_action(state, evaluation_flag = evaluation_flag)
+            observation, _, reward, done, info = env.step(action)
             
-            # observation, reward, done, truncated, _ = env.step(action.item())
+            # observation, reward, done, truncated, _ = env.step(action)
             reward = torch.tensor([reward], device=device)
             if done:
                 next_state = None
@@ -162,32 +147,32 @@ def objective(trial, num_episodes = 1000):
 
             
             # Store the transition in memory
-            avg_loss = dqn_agent.step(state, action, reward, next_state, done)
-
+            if not evaluation_flag:
+                avg_loss = dqn_agent.step(state, action, reward, next_state, done)
             # Move to the next state
-            losses.append(avg_loss)
             state = next_state
-            total_reward += reward.item()
+            total_reward += reward.item()*(env.max_reward-env.min_reward)
+            crops_selected.append(info["Previous crop"])
             if done:
                 break
-        average_last_20_losses = (average_last_20_losses * 19 + avg_loss) / 20
-        average_last_20_rewards = (average_last_20_rewards * 19 + total_reward) / 20
-        print(f"Run number: {i_episode}, Reward: {total_reward}, Epsilon: {dqn_agent.eps_threshold}, Beta: {dqn_agent.beta},  Avg loss: {torch.tensor(losses).mean()}")
-        rewards.append(total_reward)
-        average_losses.append(torch.tensor(losses).mean())
-    print('Complete')
-    return math.log(average_last_20_losses), average_last_20_rewards
+        if not evaluation_flag:
+            print(f"#{i_episode}, Reward: {total_reward}, Epsilon: {dqn_agent.eps_threshold}, Beta: {dqn_agent.beta},  Average loss: {torch.tensor(losses).mean()}")
+            average_last_20_losses = (average_last_20_losses * 19 + avg_loss) / 20
+        else:
+            print(f"#{i_episode}, Evaluation: Reward: {total_reward}. Selected crops: {crops_selected}")
+            average_last_10_rewards = (average_last_10_rewards * 9 + total_reward) / 10
+    
+
+
+    return math.log(average_last_20_losses), average_last_10_rewards
 
 def run_optuna_study(num_episodes=500, n_trials=30, timeout=600):
     study = optuna.create_study(directions=["minimize","maximize"])
     # create partial function from objective function including num_episodes
     objective_partial = lambda trial: objective(trial, num_episodes)
     study.optimize(objective_partial, n_trials=n_trials, timeout=timeout)
-
     print("Study statistics: ")
     print("  Number of finished trials: ", len(study.trials))
-
-    
     print(f"Number of trials on the Pareto front: {len(study.best_trials)}")
 
     trial_with_highest_avg_rewards = max(study.best_trials, key=lambda t: t.values[1])
@@ -197,4 +182,3 @@ def run_optuna_study(num_episodes=500, n_trials=30, timeout=600):
     print(f"\tparams:")
     pp.pprint(trial_with_highest_avg_rewards.params)
     optuna.visualization.plot_pareto_front(study, target_names=["Average final losses", "Average final rewards"])
-

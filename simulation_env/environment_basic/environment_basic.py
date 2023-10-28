@@ -139,9 +139,9 @@ class CropRotationEnv(Env):
       # Add yield to reward if soil and crop combination suitability are ok and no rules have been violated
       if self.soilNitrogenLevel >=0 and cropCombinationSuitability > 0 and crop_break_rule_violated == False and max_crop_occ_rule_violated == False and root_crop_rule_violated == False:
       #if self.soilNitrogenLevel >=0 and cropCombinationSuitability > 0 and max_crop_occ_rule_violated == False and root_crop_rule_violated == False:
-          reward = self.currentYield/(max(self.cropYieldList.values())*1.2-self.negativeReward)
+          reward = self.currentYield
       else: 
-          reward = self.negativeReward/(max(self.cropYieldList.values())*1.2-self.negativeReward)
+          reward = self.negativeReward
       
       # Set to done if crop rotation sequence is finished
       if self.cropRotationSequenceLength <= 0: 

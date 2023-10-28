@@ -13,10 +13,8 @@ import typing
 import numpy as np
 from models.utilities.ReplayBufferPrioritized import PrioritizedExperienceReplayBuffer, Experience
 
-
 def synchronize_q_networks(q_network_1: nn.Module, q_network_2: nn.Module, tau: float = 1.0) -> None:
     """In place, synchronization of q_network_1 and q_network_2."""
-
     for target_param, local_param in zip(q_network_1.parameters(), q_network_2.parameters()):
         target_param.data.copy_(tau * local_param.data + (1 - tau) * target_param.data)
 
@@ -69,10 +67,6 @@ def double_q_learning_error(states: torch.Tensor,
     return delta
 
 
-
-
-
-
 A = typing.TypeVar('A', bound='Agent')
 
 
@@ -103,17 +97,17 @@ class Agent:
 class DeepQAgent(Agent):
 
     def __init__(self,
-                 env,
-                 number_hidden_units: int,
-                 optimizer_fn: typing.Callable[[typing.Iterable[nn.Parameter]], optim.Optimizer],
-                 batch_size: int,
-                 buffer_size: int,
-                 alpha: float,
-                 beta_annealing_schedule: typing.Callable[[int], float],
-                 epsilon_decay_schedule: typing.Callable[[int], float],
-                 gamma: float,
-                 tau: int = 1,
-                 seed: int = None) -> None:
+                env,
+                number_hidden_units: int,
+                optimizer_fn: typing.Callable[[typing.Iterable[nn.Parameter]], optim.Optimizer],
+                batch_size: int,
+                buffer_size: int,
+                alpha: float,
+                beta_annealing_schedule: typing.Callable[[int], float],
+                epsilon_decay_schedule: typing.Callable[[int], float],
+                gamma: float,
+                tau: int = 1,
+                seed: int = None) -> None:
         """
         Initialize a DeepQAgent.
         
@@ -190,45 +184,25 @@ class DeepQAgent(Agent):
         """Choose an action uniformly at random."""
         return self._random_state.randint(self._action_size)
         
-    def _greedy_policy(self, state: torch.Tensor) -> int:
-        """Choose an action that maximizes the action_values given the current state."""
-        actions = select_greedy_actions(state, self._online_q_network)
-        action = (actions.cpu()  # actions might reside on the GPU!
-                         .item())
-        return action
-    
-    def _epsilon_greedy_policy(self, state: torch.Tensor, epsilon: float) -> int:
-        """With probability epsilon explore randomly; otherwise exploit knowledge optimally."""
-        if self._random_state.random() < epsilon:
-            action = self._uniform_random_policy(state)
-        else:
-            action = self._greedy_policy(state)
-        return action
-
-
-    def select_action(self,state):
-        sample = random.random()
-        self.eps_threshold = self._epsilon_decay_schedule(self._number_timesteps)
-        # self.eps_threshold = 0.2
-        if sample > self.eps_threshold:
+    def select_action(self,state, evaluation_flag = False):
+        if evaluation_flag:
             with torch.no_grad():
-                # t.max(1) will return the largest column value of each row.
-                # second column on max result is index of where max element was
-                # found, so we pick action with the larger expected reward.
-                action_probs = self._online_q_network(state)
-                # print(action_probs)
-                action = action_probs.argmax().view(1, 1)
-                return action
+                return self._online_q_network(state).argmax().view(1, 1).item()
         else:
-            return torch.tensor([self.env.action_space.sample()], device=self._device, dtype=torch.long)
-        
-    def select_greedy_action(self,state):
-        # self.eps_threshold = 0.2
-        with torch.no_grad():
-            # t.max(1) will return the largest column value of each row.
-            # second column on max result is index of where max element was
-            # found, so we pick action with the larger expected reward.
-            return self._online_q_network(state).argmax().view(1, 1)
+            sample = random.random()
+            self.eps_threshold = self._epsilon_decay_schedule(self._number_timesteps)
+            # self.eps_threshold = 0.2
+            if sample > self.eps_threshold:
+                with torch.no_grad():
+                    # t.max(1) will return the largest column value of each row.
+                    # second column on max result is index of where max element was
+                    # found, so we pick action with the larger expected reward.
+                    action_probs = self._online_q_network(state)
+                    # print(action_probs)
+                    action = action_probs.argmax().view(1, 1)
+                    return action.item()
+            else:
+                return self.env.action_space.sample()
     
     def learn(self, idxs: np.array, experiences: np.array, sampling_weights: np.array):
         """Update the agent's state based on a collection of recent experiences."""
@@ -323,9 +297,9 @@ class DeepQAgent(Agent):
         else:
             self._number_timesteps += 1
         if next_state is None:
-            # next_state = torch.zeros(len(state[0])).view(1,194).to(self._device)
+
             next_state = torch.zeros_like(state).to(self._device)
-        action = action.view(1)
+        action = torch.tensor([action]).to(self._device)
         experience = Experience(state, action.view(1,1), reward.view(1,1), next_state, torch.tensor([done]).view(1,1))
         self._memory.add(experience)
         if len(self._memory)>=self._memory.batch_size:

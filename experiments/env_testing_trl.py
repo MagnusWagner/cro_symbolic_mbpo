@@ -91,8 +91,8 @@ def test_run_pytorch():
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
         for t in count():
             action = dqn_agent.select_action(state)
-            observation, reward, done, info = env.step(action.item())
-            # observation, reward, done, truncated, _ = env.step(action.item())
+            observation, reward, done, info = env.step(action)
+            # observation, reward, done, truncated, _ = env.step(action)
             reward = torch.tensor([reward], device=device)
             if done:
                 next_state = None
@@ -123,7 +123,7 @@ def test_run_pytorch():
             total_reward += numeric_reward
             if done:
                 break
-        print(f"Run number: {i_episode}, Reward: {total_reward}, Epsilon: {dqn_agent.eps_threshold}")
+        print(f"#{i_episode}, Reward: {total_reward}, Epsilon: {dqn_agent.eps_threshold}")
         rewards.append(total_reward)
                 
     

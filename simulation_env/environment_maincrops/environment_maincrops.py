@@ -34,12 +34,12 @@ with open(json_file_path, "r") as json_file:
     maincrop_properties = json.load(json_file)
 
 class CropRotationEnv(Env):
-    def __init__(self, seed = 42, seq_len = 8, NInit = 50.0, region = None, deterministic = True):
+    def __init__(self, seed = 42, seq_len = 8, NInit = 50.0, region = None, DryWetInit = None, GroundTypeInit = None,  deterministic = True):
         if region:
            self.region = region
         else:
            self.region ="Bundesgebiet"
-        
+        self.deterministic = deterministic
         self.seed = seed
         random.seed(self.seed)
         # German names of crops used in the crop rotation
@@ -62,6 +62,7 @@ class CropRotationEnv(Env):
         self.suitability_dict = {
           -2: 0.8,
           -1: 0.9,
+          0: 1.0,
           1: 1.1,
           2: 1.2
         }
@@ -94,15 +95,23 @@ class CropRotationEnv(Env):
         self.K = 0.0
         self.Week = 0
         # Select ground type: -1 = light, 0 = medium, 1 = heavy
-        self.GroundType = random.choice([-1.0,0.0,1.0])
+        self.GroundTypeInit = GroundTypeInit
+        if self.GroundTypeInit:
+            self.GroundType = self.GroundTypeInit
+        else:
+            self.GroundType = random.choice([-1.0,0.0,1.0])
 
         # Humus initialization
         self.HumusInit = self.ground_humus_dict["initial_humus"][self.GroundType]
         self.Humus = self.HumusInit
         # Probability to have a wet year
+        self.DryWetInit = DryWetInit
         self.DryWetProb = random.uniform(0.2,0.8)
         # Actual index, 1 = wet year, 0 = dry year
-        self.DryWet = self.get_drywet(self.DryWetProb)
+        if self.DryWetInit:
+            self.DryWet = self.DryWetInit
+        else:
+            self.DryWet = self.get_drywet(self.DryWetProb)
 
        
         # Previous crops initialization
@@ -157,7 +166,7 @@ class CropRotationEnv(Env):
         self.K_costs_gbm_std = self.maincrop_yields["WINTERWEIZEN"]["Kosten"]["Duenger K"]["std_gbm"]       
 
         # Calculate maximum reward
-        average_yields = np.array([self.maincrop_yields[crop_name]["Ertrag"][self.region]["avg"] if self.region in self.maincrop_yields[crop_name]["Ertrag"].keys() else self.maincrop_yields[crop_name]["Ertrag"]["Bundesgebiet"]["avg"] for crop_name in self.maincrop_yields.keys()])
+        self.average_yields = np.array([self.maincrop_yields[crop_name]["Ertrag"][self.region]["avg"] if self.region in self.maincrop_yields[crop_name]["Ertrag"].keys() else self.maincrop_yields[crop_name]["Ertrag"]["Bundesgebiet"]["avg"] for crop_name in self.maincrop_yields.keys()])
         # TODO: Add costs
         # Calculate actual costs for nitrogen, phosphor and kalium fertilizations
         # maximum amount of nitrogen fertilization per hectar is 170 kg
@@ -172,7 +181,7 @@ class CropRotationEnv(Env):
         average_K_fertilization_costs = self.K_costs * average_K_fertilization_needs
 
         # Calculate profits
-        average_profits = average_yields * self.prices_avg - self.sowing_costs_avg - self.other_costs_avg - average_N_fertilization_costs - average_P_fertilization_costs - average_K_fertilization_costs
+        average_profits = self.average_yields * self.prices_avg - self.sowing_costs_avg - self.other_costs_avg - average_N_fertilization_costs - average_P_fertilization_costs - average_K_fertilization_costs
         average_costs = self.sowing_costs_avg + self.other_costs_avg + average_N_fertilization_costs + average_P_fertilization_costs + average_K_fertilization_costs
         max_reward_idx = average_profits.argmax()
         min_reward_idx = average_costs.argmax()
@@ -316,11 +325,29 @@ class CropRotationEnv(Env):
         # Get suitability of crop combination and determine yield; add 10% if it is a suitable combination and 20% if it is a very suitable combination
         # subtract 10% if rather unsuitable, subtract 20% if very unsuitable
         crop_name = self.crop_mapping_german[action]
+        if not self.deterministic:
+            # Calculate next costs and prices
+            self.prices = self.calculate_next_price(self.prices, self.prices_gbm_avg, self.prices_gbm_std)
+            self.sowing_costs = self.calculate_next_price(self.sowing_costs, self.sowing_costs_gbm_avg, self.sowing_costs_gbm_std)
+            self.other_costs = self.calculate_next_price(self.other_costs, self.other_costs_gbm_avg, self.other_costs_gbm_std)
+            self.N_costs = self.calculate_next_price(self.N_costs, self.N_costs_gbm_avg, self.N_costs_gbm_std)
+            self.P_costs = self.calculate_next_price(self.P_costs, self.P_costs_gbm_avg, self.P_costs_gbm_std)
+            self.K_costs = self.calculate_next_price(self.K_costs, self.K_costs_gbm_avg, self.K_costs_gbm_std)       
 
+
+            # Limit prices and costs to be <= maximum prices and costs
+            self.prices = np.minimum(self.prices, self.maximum_prices)
+            self.sowing_costs = np.minimum(self.sowing_costs, self.maximum_sowing_costs)
+            self.other_costs = np.minimum(self.other_costs, self.maximum_other_costs)
+            self.N_costs = np.minimum(self.N_costs, self.maximum_N_costs)
+            self.P_costs = np.minimum(self.P_costs, self.maximum_P_costs)
+            self.K_costs = np.minimum(self.K_costs, self.maximum_K_costs)
+
+        
         if self.region in self.maincrop_yields[crop_name]["Ertrag"]:
-            self.current_yield = self.calculate_next_yield(self.maincrop_yields[crop_name]["Ertrag"][self.region]["avg"], self.maincrop_yields[crop_name]["Ertrag"][self.region]["std"])
+            self.current_yield = self.calculate_next_yield(self.average_yields[action], self.maincrop_yields[crop_name]["Ertrag"][self.region]["std"]/2)
         else:
-            self.current_yield = self.calculate_next_yield(self.maincrop_yields[crop_name]["Ertrag"]["Bundesgebiet"]["avg"], self.maincrop_yields[crop_name]["Ertrag"]["Bundesgebiet"]["std"])
+            self.current_yield = self.calculate_next_yield(self.average_yields[action], self.maincrop_yields[crop_name]["Ertrag"]["Bundesgebiet"]["std"]/2)
 
         if self.Humus < self.ground_humus_dict["minimum_humus"][self.GroundType]:
             humus_yield_factor = max(0.3,1.0+(self.Humus-self.ground_humus_dict["minimum_humus"][self.GroundType])*0.38)
@@ -419,8 +446,11 @@ class CropRotationEnv(Env):
         if self.maincrop_properties[crop_name]["summercrop"] == 1 or self.Week < self.date_mapping_rev[self.maincrop_properties[crop_name]["latest sowing"]]-1:
             timing_factor = 1.0
         else:
-            timing_violation_flag = True
+            
             timing_factor = max(0.,1+(self.date_mapping_rev[self.maincrop_properties[crop_name]["latest sowing"]] - 1 - self.Week)*0.2)
+            if timing_factor < 1.0:
+                timing_violation_flag = True
+            test = 1 # TODO Remove (Testing artifact)
 
         ground_type_violation_flag = False
         # calculating the ground factor
@@ -431,8 +461,6 @@ class CropRotationEnv(Env):
             ground_factor = 0.9
         
         drywet_violation_flag = False
-        # Finding out if the previous season was dry or wet
-        # self.DryWet = self.get_drywet(self.DryWetProb)
         # calculating the dry/wet factor
         if self.DryWet == 1.0:
             drywet_factor = 1.1
@@ -457,9 +485,6 @@ class CropRotationEnv(Env):
 
         # calculate humus yield effect
         # https://www.lfl.bayern.de/iab/boden/031146/#:~:text=Ergebnisse%20von%20Dauerfeldversuchen%20zeigen%2C%20dass,6%20und%207%20exemplarisch%20dargestellt.
-
-        # TODO remove setting factors to 1
-        # crop_break_factor = 1.0
 
         # calculate yields via GBM
         # yield is penalized by different factors representing rule violations
@@ -542,23 +567,23 @@ class CropRotationEnv(Env):
         # Pushed this to the back to be more deterministic
         # TODO Add this again to have switching DryWet Probabilities.
         # self.DryWet = self.get_drywet(self.DryWetProb)
-        
-        # Calculate next costs and prices
-        self.prices = self.calculate_next_price(self.prices, self.prices_gbm_avg, self.prices_gbm_std)
-        self.sowing_costs = self.calculate_next_price(self.sowing_costs, self.sowing_costs_gbm_avg, self.sowing_costs_gbm_std)
-        self.other_costs = self.calculate_next_price(self.other_costs, self.other_costs_gbm_avg, self.other_costs_gbm_std)
-        self.N_costs = self.calculate_next_price(self.N_costs, self.N_costs_gbm_avg, self.N_costs_gbm_std)
-        self.P_costs = self.calculate_next_price(self.P_costs, self.P_costs_gbm_avg, self.P_costs_gbm_std)
-        self.K_costs = self.calculate_next_price(self.K_costs, self.K_costs_gbm_avg, self.K_costs_gbm_std)       
+        if self.deterministic:
+            # Calculate next costs and prices
+            self.prices = self.calculate_next_price(self.prices, self.prices_gbm_avg, self.prices_gbm_std)
+            self.sowing_costs = self.calculate_next_price(self.sowing_costs, self.sowing_costs_gbm_avg, self.sowing_costs_gbm_std)
+            self.other_costs = self.calculate_next_price(self.other_costs, self.other_costs_gbm_avg, self.other_costs_gbm_std)
+            self.N_costs = self.calculate_next_price(self.N_costs, self.N_costs_gbm_avg, self.N_costs_gbm_std)
+            self.P_costs = self.calculate_next_price(self.P_costs, self.P_costs_gbm_avg, self.P_costs_gbm_std)
+            self.K_costs = self.calculate_next_price(self.K_costs, self.K_costs_gbm_avg, self.K_costs_gbm_std)       
 
 
-        # Limit prices and costs to be <= maximum prices and costs
-        self.prices = np.minimum(self.prices, self.maximum_prices)
-        self.sowing_costs = np.minimum(self.sowing_costs, self.maximum_sowing_costs)
-        self.other_costs = np.minimum(self.other_costs, self.maximum_other_costs)
-        self.N_costs = np.minimum(self.N_costs, self.maximum_N_costs)
-        self.P_costs = np.minimum(self.P_costs, self.maximum_P_costs)
-        self.K_costs = np.minimum(self.K_costs, self.maximum_K_costs)
+            # Limit prices and costs to be <= maximum prices and costs
+            self.prices = np.minimum(self.prices, self.maximum_prices)
+            self.sowing_costs = np.minimum(self.sowing_costs, self.maximum_sowing_costs)
+            self.other_costs = np.minimum(self.other_costs, self.maximum_other_costs)
+            self.N_costs = np.minimum(self.N_costs, self.maximum_N_costs)
+            self.P_costs = np.minimum(self.P_costs, self.maximum_P_costs)
+            self.K_costs = np.minimum(self.K_costs, self.maximum_K_costs)
         
         
         self.state = np.concatenate((np.array([self.N,self.P, self.K, self.Week, self.GroundType, self.DryWet, self.Humus,self.N_costs,self.P_costs,self.K_costs]), self.prices, self.sowing_costs, self.other_costs,self.previous_crops_selected_matrix.flatten())) 
@@ -582,7 +607,7 @@ class CropRotationEnv(Env):
         self.filter_information = np.concatenate((np.array([self.Week, self.GroundType, self.DryWet, self.Humus, self.ground_humus_dict['minimum_humus'][self.GroundType]]),np.array(self.previous_crops_selected)))
 
         # Apply reward and step information
-        self.reward = profit/(self.max_reward-self.min_reward)
+        self.reward = profit
         # print("Crop reduction factors: ",humus_yield_factor, crop_combination_factor, crop_break_factor, timing_factor, ground_factor, drywet_factor)
         # print("% of actual yield",actual_yield/self.current_yield, "Reward: ",self.reward)
         self.info = {
@@ -625,11 +650,13 @@ class CropRotationEnv(Env):
 
         self.Week = 0
         self.cropRotationSequenceLength = self.cropRotationSequenceLengthInit
-        self.GroundType = random.choice([-1.0,0.0,1.0])
+        if not self.GroundTypeInit:
+            self.GroundType = random.choice([-1.0,0.0,1.0])
         self.HumusInit = self.ground_humus_dict["initial_humus"][self.GroundType]
         self.Humus = self.HumusInit
         self.DryWetProb = random.uniform(0.2,0.8) # maybe change to stay the same
-        self.DryWet = self.get_drywet(self.DryWetProb)
+        if not self.DryWetInit:
+            self.DryWet = self.get_drywet(self.DryWetProb)
 
         # Reset previous crops
         self.previous_crop = None

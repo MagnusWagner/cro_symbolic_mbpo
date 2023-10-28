@@ -65,7 +65,7 @@
     "ground type": ["medium", "heavy"],
     "drought resistance": 0,
     "humus effect": -1,
-    "humus equivalent": -400.0,
+    "humus equivalent": -280.0,
     "postdelivery": 0.0,
     "summercrop": 0
   },
@@ -75,7 +75,7 @@
     "ground type": ["medium", "heavy"],
     "drought resistance": -1,
     "humus effect": -1,
-    "humus equivalent": -400.0,
+    "humus equivalent": -280.0,
     "postdelivery": 0.0,
     "summercrop": 1
   },
@@ -85,7 +85,7 @@
     "ground type": ["medium", "heavy"],
     "drought resistance": 0,
     "humus effect": -1,
-    "humus equivalent": -400.0,
+    "humus equivalent": -280.0,
     "postdelivery": 0.0,
     "summercrop": 0
   },
@@ -95,7 +95,7 @@
     "ground type": ["medium", "heavy"],
     "drought resistance": 0,
     "humus effect": -1,
-    "humus equivalent": -400.0,
+    "humus equivalent": -280.0,
     "postdelivery": 0.0,
     "summercrop": 0
   },
@@ -105,7 +105,7 @@
     "ground type": ["medium", "heavy"],
     "drought resistance": 0,
     "humus effect": -1,
-    "humus equivalent": -400.0,
+    "humus equivalent": -280.0,
     "postdelivery": 0.0,
     "summercrop": 0
   },
@@ -115,7 +115,7 @@
     "ground type": ["light", "medium"],
     "drought resistance": 1,
     "humus effect": -1,
-    "humus equivalent": -400.0,
+    "humus equivalent": -280.0,
     "postdelivery": 0.0,
     "summercrop": 0
   },
@@ -125,7 +125,7 @@
     "ground type": ["light", "medium"],
     "drought resistance": 1,
     "humus effect": -1,
-    "humus equivalent": -400.0,
+    "humus equivalent": -280.0,
     "postdelivery": 0.0,
     "summercrop": 0
   },
@@ -135,7 +135,7 @@
     "ground type": ["medium"],
     "drought resistance": -1,
     "humus effect": -1,
-    "humus equivalent": -400.0,
+    "humus equivalent": -280.0,
     "postdelivery": 0.0,
     "summercrop": 1
   },
@@ -145,7 +145,7 @@
     "ground type": ["medium"],
     "drought resistance": -1,
     "humus effect": -1,
-    "humus equivalent": -400.0,
+    "humus equivalent": -280.0,
     "postdelivery": 0.0,
     "summercrop": 1
   },
@@ -155,7 +155,7 @@
     "ground type": ["light", "medium"],
     "drought resistance": 1,
     "humus effect": -1,
-    "humus equivalent": -800.0,
+    "humus equivalent": -560.0,
     "postdelivery": 0.0,
     "summercrop": 1
   },
@@ -165,7 +165,7 @@
     "ground type": ["medium", "heavy"],
     "drought resistance": -1,
     "humus effect": -2,
-    "humus equivalent": -800.0,
+    "humus equivalent": -560.0,
     "postdelivery": 0.0,
     "summercrop": 1
   },
@@ -175,7 +175,7 @@
     "ground type": ["medium", "heavy"],
     "drought resistance": -1,
     "humus effect": -2,
-    "humus equivalent": -800.0,
+    "humus equivalent": -560.0,
     "postdelivery": 0.0,
     "summercrop": 1
   },
@@ -185,7 +185,7 @@
     "ground type": ["medium"],
     "drought resistance": 0,
     "humus effect": -3,
-    "humus equivalent": -1300.0,
+    "humus equivalent": -760.0,
     "postdelivery": 10.0,
     "summercrop": 1
   },
@@ -195,7 +195,7 @@
     "ground type": ["light", "medium"],
     "drought resistance": -1,
     "humus effect": -3,
-    "humus equivalent": -1000.0,
+    "humus equivalent": -760.0,
     "postdelivery": 0.0,
     "summercrop": 1
   },
@@ -205,7 +205,7 @@
     "ground type": ["medium", "heavy"],
     "drought resistance": 0,
     "humus effect": -1,
-    "humus equivalent": -400.0,
+    "humus equivalent": -280.0,
     "postdelivery": 10.0,
     "summercrop": 0
   },
@@ -215,7 +215,7 @@
     "ground type": ["light", "medium"],
     "drought resistance": -1,
     "humus effect": -1,
-    "humus equivalent": -400.0,
+    "humus equivalent": -280.0,
     "postdelivery": 10.0,
     "summercrop": 1
   },
@@ -225,8 +225,18 @@
     "ground type": ["light", "medium"],
     "drought resistance": -1,
     "humus effect": -2,
-    "humus equivalent": -1000.0,
+    "humus equivalent": -760.0,
     "postdelivery": 0.0,
     "summercrop": 1
+  },
+  "GRASSILAGE": {
+    "latest sowing": "late september",
+    "earliest harvest": "mid may",
+    "ground type": ["light","medium","heavy"],
+    "drought resistance": 1,
+    "humus effect": 3,
+    "humus equivalent": 1300.0,
+    "postdelivery": 10.0,
+    "summercrop": 0
   }
 }

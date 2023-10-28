@@ -21,7 +21,8 @@ crop_mapping_german = {
     19: 'KARTOFFELN',
     20: 'WINTERRAPS',
     21: 'SONNENBLUMEN',
-    22: 'OELKUERBIS'
+    22: 'OELKUERBIS',
+    23: 'GRASSILAGE'
 }
 
 crop_mapping_german_rev = {
@@ -47,7 +48,8 @@ crop_mapping_german_rev = {
     'KARTOFFELN': 19,
     'WINTERRAPS': 20,
     'SONNENBLUMEN': 21,
-    'OELKUERBIS': 22
+    'OELKUERBIS': 22,
+    'GRASSILAGE':23
 }
 
 crop_mapping_eng = {
@@ -73,7 +75,8 @@ crop_mapping_eng = {
     19: 'POTATO',
     20: 'WINTER RAPESEED',
     21: 'SUNFLOWER',
-    22: 'OIL PUMPKIN'
+    22: 'OIL PUMPKIN',
+    23: 'GRASS'
 }
 
 date_mapping = {
