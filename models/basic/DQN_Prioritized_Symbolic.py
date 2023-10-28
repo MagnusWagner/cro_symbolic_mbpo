@@ -24,13 +24,14 @@ def synchronize_q_networks(q_network_1: nn.Module, q_network_2: nn.Module, tau: 
     # _ = q_network_1.load_state_dict(q_network_2.state_dict())
 
 
-def select_greedy_actions(states: torch.Tensor, q_network: nn.Module) -> torch.Tensor:
+# TODO Change to set non-allowed-actions to -np.inf
+def select_next_greedy_actions(next_states: torch.Tensor, q_network: nn.Module, next_filter_masks: torch.Tensor) -> torch.Tensor:
     """Select the greedy action for the current state given some Q-network."""
-    action_values = q_network(states)
-    # filter_mask = filter_mask.bool()
-    # action_values[filter_mask] = -5.0
-    _, actions = action_values.max(dim=1, keepdim=True)
-    return actions
+    next_action_values = q_network(next_states)
+    next_filter_masks = next_filter_masks.bool()
+    next_action_values[next_filter_masks] = -np.inf
+    _, next_actions = next_action_values.max(dim=1, keepdim=True)
+    return next_actions
 
 
 
@@ -47,16 +48,16 @@ def evaluate_selected_actions(states: torch.Tensor,
     return q_values
 
 
-def double_q_learning_update(states: torch.Tensor,
-                             rewards: torch.Tensor,
-                             dones: torch.Tensor,
-                            #  filter_mask: torch.Tensor,
-                             gamma: float,
-                             q_network_1: nn.Module,
-                             q_network_2: nn.Module) -> torch.Tensor:
+def double_q_learning_update(next_states: torch.Tensor,
+                            rewards: torch.Tensor,
+                            dones: torch.Tensor,
+                            gamma: float,
+                            q_network_1: nn.Module,
+                            q_network_2: nn.Module,
+                            next_filter_masks: torch.Tensor,) -> torch.Tensor:
     """Double Q-Learning uses Q-network 1 to select actions and Q-network 2 to evaluate the selected actions."""
-    actions = select_greedy_actions(states, q_network_1)
-    q_values = evaluate_selected_actions(states, actions, rewards, dones, gamma, q_network_2)
+    next_actions = select_next_greedy_actions(next_states, q_network_1, next_filter_masks)
+    q_values = evaluate_selected_actions(next_states, next_actions, rewards, dones, gamma, q_network_2)
     return q_values
 
 
@@ -65,7 +66,7 @@ def double_q_learning_error(states: torch.Tensor,
                             rewards: torch.Tensor,
                             next_states: torch.Tensor,
                             dones: torch.Tensor,
-                            actions_allowed: torch.Tensor,
+                            next_filter_masks: torch.Tensor,
                             gamma: float,
                             q_network_1: nn.Module,
                             q_network_2: nn.Module) -> torch.Tensor:
@@ -73,7 +74,7 @@ def double_q_learning_error(states: torch.Tensor,
     # # print average reward over rewards where actions_allowed == 1.0
     # print(rewards[actions_allowed == 1.0].mean())
     # print(rewards[actions_allowed == 0.0].mean())
-    expected_q_values = double_q_learning_update(next_states, rewards, dones, gamma, q_network_1, q_network_2)
+    expected_q_values = double_q_learning_update(next_states, rewards, dones, gamma, q_network_1, q_network_2, next_filter_masks)
     # print(expected_q_values[actions_allowed == 1.0].mean())
     # print(expected_q_values[actions_allowed == 0.0].mean())
 
@@ -305,7 +306,7 @@ class DeepQAgent(Agent):
     
     def learn(self, idxs: np.array, experiences: np.array, sampling_weights: np.array):
         """Update the agent's state based on a collection of recent experiences."""
-        states, actions, rewards, next_states, dones, actions_allowed = (torch.stack(vs,0).squeeze(1).to(self._device) for vs in zip(*experiences))
+        states, actions, rewards, next_states, dones, next_filter_masks = (torch.stack(vs,0).squeeze(1).to(self._device) for vs in zip(*experiences))
         
         # need to add second dimension to some tensors
         actions = actions.long()
@@ -316,7 +317,7 @@ class DeepQAgent(Agent):
                                          rewards,
                                          next_states,
                                          dones,
-                                         actions_allowed,
+                                         next_filter_masks,
                                          self._gamma,
                                          self._online_q_network,
                                          self._target_q_network)
@@ -378,7 +379,7 @@ class DeepQAgent(Agent):
              reward: float,
              next_state: np.array,
              done: bool,
-             filter_information,
+             next_filter_information,
              env) -> None:
         """
         Updates the agent's state based on feedback received from the environment.
@@ -401,13 +402,13 @@ class DeepQAgent(Agent):
         if next_state is None:
             next_state = torch.zeros_like(state).to(self._device)
         action = torch.tensor([action]).to(self._device)
-        possible_actions = self.filter_actions(filter_information)
-        filter_mask = torch.zeros(env.action_space.n)
-        if possible_actions:
-            filter_mask[possible_actions] = 1.0
-        filter_mask = filter_mask.to(self._device)
-        action_allowed = filter_mask[action].view(1,1)
-        experience = Experience_Symbolic(state, action.view(1,1), reward.view(1,1), next_state, torch.tensor([done]).view(1,1), action_allowed)
+        next_possible_actions = self.filter_actions(next_filter_information)
+        next_filter_mask = torch.zeros(env.action_space.n)
+        if next_possible_actions and not done:
+            next_filter_mask[next_possible_actions] = 1.0
+        next_filter_mask = next_filter_mask.to(self._device)
+        # action_allowed = filter_mask[action].view(1,1)
+        experience = Experience_Symbolic(state, action.view(1,1), reward.view(1,1), next_state, torch.tensor([done]).view(1,1), next_filter_mask)
         self._memory.add(experience)
         if len(self._memory)>=self._memory.batch_size:
             self.beta = self._beta_annealing_schedule(self._number_episodes)

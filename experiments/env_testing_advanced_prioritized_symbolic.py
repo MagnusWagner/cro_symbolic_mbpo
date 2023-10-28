@@ -17,16 +17,16 @@ TRAINING_EVALUATION_RATIO = 5
 
 def test_run(num_episodes = 500, DryWetInit = None, GroundTypeInit = None, deterministic = None, seq_len = 5, seed = 43, rule_options = "humus_and_breaks", only_filter = False):
     param_dict = {   
-    'alpha': 0.7694843699721963,
-    'batch_size': 350,
-    'beta': 0.005011142099839954,
-    'buffer_size': 5111,
+    'alpha': 0.5554887943329508,
+    'batch_size': 381,
+    'beta': 0.0010198361240556146,
+    'buffer_size': 5212,
+    'epsilon_max': 0.7954054344061976,
     'delta_max': 0.98,
-    'epsilon_max': 0.3661880105349842,
-    'lr': 0.003261362212533657,
-    'number_hidden_units': 558,
-    'tau': 0.07316558231562796,
-    'weight_decay': 0.014870085686472516}
+    'lr': 2.4401561648489245e-05,
+    'number_hidden_units': 926,
+    'tau': 0.2906968953074242,
+    'weight_decay': 0.0019988460143838633}
     training_eval_ratio = 5
     single_training_run(
         param_dict,

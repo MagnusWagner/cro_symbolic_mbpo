@@ -98,8 +98,8 @@ def single_training_run(
                 buffer_size = param_dict["buffer_size"],
                 alpha = param_dict["alpha"],
                 beta_annealing_schedule = lambda x: exponential_annealing_schedule(x, param_dict["beta"]),
-                epsilon_decay_schedule = lambda x: epsilon_decay_schedule(x, param_dict["epsilon_max"], 0.1, num_episodes),
-                delta_decay_schedule = lambda x: delta_decay_schedule(x, param_dict["delta_max"], 0.1, num_episodes),
+                epsilon_decay_schedule = lambda x: epsilon_decay_schedule(x, param_dict["epsilon_max"], 0.01, num_episodes),
+                delta_decay_schedule = lambda x: delta_decay_schedule(x, param_dict["delta_max"], 0.5, num_episodes),
                 gamma = 0.99,
                 tau = param_dict["tau"],
                 seed= seed,
@@ -171,7 +171,7 @@ def single_training_run(
                     temperature_losses.append(temperature_loss)
             else:
                 if symbolic_flag:
-                    avg_loss = agent.step(state, action, reward_tensor, next_state, done, filter_information, env)
+                    avg_loss = agent.step(state, action, reward_tensor, next_state, done, next_filter_information, env)
                 else:
                     avg_loss = agent.step(state, action, reward_tensor, next_state, done)
                 losses.append(avg_loss)
@@ -382,7 +382,7 @@ def objective(trial,
                     temperature_losses.append(temperature_loss)
             else:
                 if symbolic_flag:
-                    avg_loss = agent.step(state, action, reward_tensor, next_state, done, filter_information, env)
+                    avg_loss = agent.step(state, action, reward_tensor, next_state, done, next_filter_information, env)
                 else:
                     avg_loss = agent.step(state, action, reward_tensor, next_state, done)
                 losses.append(avg_loss)
