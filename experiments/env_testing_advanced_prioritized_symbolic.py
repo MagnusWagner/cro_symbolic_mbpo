@@ -12,7 +12,6 @@ from experiments.utilities import single_training_run
 
 # Create pprinter
 pp = pprint.PrettyPrinter(indent=4)
-TRAINING_EVALUATION_RATIO = 5
 
 
 def test_run(num_episodes = 500, DryWetInit = None, GroundTypeInit = None, deterministic = None, seq_len = 5, seed = 43, rule_options = "humus_and_breaks", only_filter = False):

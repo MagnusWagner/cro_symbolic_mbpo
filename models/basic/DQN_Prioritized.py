@@ -12,6 +12,7 @@ from itertools import count
 import typing
 import numpy as np
 from models.utilities.ReplayBufferPrioritized import PrioritizedExperienceReplayBuffer, Experience
+import warnings
 
 def synchronize_q_networks(q_network_1: nn.Module, q_network_2: nn.Module, tau: float = 1.0) -> None:
     """In place, synchronization of q_network_1 and q_network_2."""
@@ -244,35 +245,6 @@ class DeepQAgent(Agent):
         
         synchronize_q_networks(self._target_q_network, self._online_q_network, tau=self._tau)
         return loss
-    
-    def save(self, filepath: str) -> None:
-        """
-        Saves the state of the DeepQAgent.
-        
-        Parameters:
-        -----------
-        filepath (str): filepath where the serialized state should be saved.
-        
-        Notes:
-        ------
-        The method uses `torch.save` to serialize the state of the q-network, 
-        the optimizer, as well as the dictionary of agent hyperparameters.
-        
-        """
-        checkpoint = {
-            "q-network-state": self._online_q_network.state_dict(),
-            "optimizer-state": self._optimizer.state_dict(),
-            "agent-hyperparameters": {
-                "alpha": self._memory.alpha,
-                "beta_annealing_schedule": self._beta_annealing_schedule,
-                "batch_size": self._memory.batch_size,
-                "buffer_size": self._memory.buffer_size,
-                "epsilon_decay_schedule": self._epsilon_decay_schedule,
-                "gamma": self._gamma,
-                "update_frequency": self._update_frequency
-            }
-        }
-        torch.save(checkpoint, filepath)
         
     def step(self,
              state: np.array,
@@ -308,6 +280,69 @@ class DeepQAgent(Agent):
             avg_delta = self.learn(idxs, experiences, sampling_weights)
             return avg_delta
         return 0.0
+    
+    def add_to_model_replay_buffer(self,
+             states: np.array,
+             actions: int,
+             rewards: float,
+             next_states: np.array,
+             dones: bool) -> None:
+        """
+        Updates the agent's state based on feedback received from the environment.
+        
+        Parameters:
+        -----------
+        state (np.array): the previous state of the environment.
+        action (int): the action taken by the agent in the previous state.
+        reward (float): the reward received from the environment.
+        next_state (np.array): the resulting state of the environment following the action.
+        done (bool): True is the training episode is finised; false otherwise.
+        """
+        for i in range(states.shape[0]):
+            if next_states[i] is None:
+                warnings.warn("add_to_model_replay_buffer: next_state is None")
+                next_state = torch.zeros_like(states[i]).to(self._device)
+            experience = Experience(states[i], actions[i].view(1,1), rewards[i].view(1,1), next_states[i], dones[i].view(1,1))
+            self._memory.add(experience)
+
+    def learn_from_buffer(self):
+        """Update the agent's state based on a collection of recent experiences."""
+        if len(self._memory)>=self._memory.batch_size:
+            self.beta = self._beta_annealing_schedule(self._number_episodes)
+            idxs, experiences, sampling_weights = self._memory.sample(self.beta)
+            avg_delta = self.learn(idxs, experiences, sampling_weights)
+            return avg_delta
+        return 0.0
+    
+
+    def save(self, filepath: str) -> None:
+        """
+        Saves the state of the DeepQAgent.
+        
+        Parameters:
+        -----------
+        filepath (str): filepath where the serialized state should be saved.
+        
+        Notes:
+        ------
+        The method uses `torch.save` to serialize the state of the q-network, 
+        the optimizer, as well as the dictionary of agent hyperparameters.
+        
+        """
+        checkpoint = {
+            "q-network-state": self._online_q_network.state_dict(),
+            "optimizer-state": self._optimizer.state_dict(),
+            "agent-hyperparameters": {
+                "alpha": self._memory.alpha,
+                "beta_annealing_schedule": self._beta_annealing_schedule,
+                "batch_size": self._memory.batch_size,
+                "buffer_size": self._memory.buffer_size,
+                "epsilon_decay_schedule": self._epsilon_decay_schedule,
+                "gamma": self._gamma,
+                "update_frequency": self._update_frequency
+            }
+        }
+        torch.save(checkpoint, filepath)
 
 
 
