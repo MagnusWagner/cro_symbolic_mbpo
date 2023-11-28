@@ -27,17 +27,18 @@ def test_run(
         rule_options = "humus_and_breaks", 
         only_filter = False):    
     param_dict = {   
-        'batch_size': 256,
-        'beta': 0.00575,
-        'buffer_size': 10000,
-        'actor_lr': 0.0029173695676940102,
-        'critic_lr': 4.648702385874135e-05,
-        'delta_max': 0.370607900987715,
-        'number_hidden_units': 652,
-        'prio_alpha': 0.8987304835041263,
-        'tau': 0.257536769088055,
-        'temperature_initial': 0.7017463941895495,
-        'weight_decay': 0.02684551375251473}
+    'batch_size': 256,
+    'buffer_size': 10000,
+    'actor_lr': 0.00012461054632689522,
+    'beta': 0.05968892903763038,
+    'critic_lr': 2.3334724699754278e-05,
+    'delta_max': 0.5002729296665283,
+    'neighbour_alpha': 0.783556094781941,
+    'number_hidden_units': 227,
+    'prio_alpha': 0.39872563819090157,
+    'tau': 0.19843159354458056,
+    'temperature_initial': 0.36610445300753924,
+    'weight_decay': 1.21169114768096e-06}
         
     
     
@@ -68,4 +69,7 @@ def test_run(
         deterministic = deterministic,
         seq_len = seq_len,
         seed = seed,
+        neighbour_flag = True,
+        num_neighbours = 20,
+        neighbour_buffer_size = 5000,
         plot_flag = True)

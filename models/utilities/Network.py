@@ -3,7 +3,8 @@ import torch
 
 class Network(torch.nn.Module):
 
-    def __init__(self, input_dimension, output_dimension, number_hidden_units = 64, output_activation=torch.nn.Identity()):
+    def __init__(self, input_dimension, output_dimension, random_state, number_hidden_units = 64, output_activation=torch.nn.Identity()):
+        torch.manual_seed(random_state.get_state()[1][0])
         super(Network, self).__init__()
         self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=number_hidden_units)
         self.layer_2 = torch.nn.Linear(in_features=number_hidden_units, out_features=number_hidden_units)

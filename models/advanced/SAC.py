@@ -2,12 +2,14 @@ import numpy as np
 import torch
 import typing
 from models.utilities.Network import Network
-from models.utilities.ReplayBufferPrioritized import PrioritizedExperienceReplayBuffer, Experience
+from models.utilities.ReplayBufferPrioritized import PrioritizedExperienceReplayBuffer, Experience, UniformReplayBuffer
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from numpy import random
+import warnings
+
+
 class SACAgent:
 
     def __init__(self, 
@@ -23,9 +25,14 @@ class SACAgent:
                  tau:float,
                  gamma: float,
                  temperature_decay_schedule: typing.Callable[[int], float],
-                 seed: int = None):
-        random.seed(seed)
-        self._random_state = np.random.RandomState(seed)
+                 random_state,
+                 model_buffer_flag = False,
+                 neighbour_flag = False,
+                 ):
+        self._random_state = random_state
+        self._random_state2 = np.random.RandomState(self._random_state.get_state()[1][0]+1)
+        self._random_state3 = np.random.RandomState(self._random_state.get_state()[1][0]+2)
+        self._random_state4 = np.random.RandomState(self._random_state.get_state()[1][0]+3)
         self._env = env
         self._number_hidden_units = number_hidden_units
         self._gamma = gamma
@@ -39,20 +46,24 @@ class SACAgent:
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._critic_local = Network(input_dimension=self._state_size,
                                     output_dimension=self._action_size,
-                                    number_hidden_units=self._number_hidden_units).to(self._device)
+                                    number_hidden_units=self._number_hidden_units,
+                                    random_state = self._random_state).to(self._device)
         self._critic_local2 = Network(input_dimension=self._state_size,
                                     output_dimension=self._action_size,
-                                    number_hidden_units=self._number_hidden_units).to(self._device)
+                                    number_hidden_units=self._number_hidden_units,
+                                    random_state = self._random_state2).to(self._device)
         
         self._critic_optimizer = critic_optimizer_fn(self._critic_local.parameters())
         self._critic_optimizer2 = critic_optimizer_fn(self._critic_local2.parameters())
 
         self._critic_target = Network(input_dimension=self._state_size,
                                     output_dimension=self._action_size,
-                                    number_hidden_units=self._number_hidden_units).to(self._device)
+                                    number_hidden_units=self._number_hidden_units,
+                                    random_state = self._random_state3).to(self._device)
         self._critic_target2 = Network(input_dimension=self._state_size,
                                     output_dimension=self._action_size,
-                                    number_hidden_units=self._number_hidden_units).to(self._device)
+                                    number_hidden_units=self._number_hidden_units,
+                                    random_state = self._random_state4).to(self._device)
         # initialize some counters
         self._number_episodes = 0
         self._number_timesteps = 0
@@ -63,7 +74,8 @@ class SACAgent:
             input_dimension=self._state_size,
             output_dimension=self._action_size,
             number_hidden_units=self._number_hidden_units,
-            output_activation=torch.nn.Softmax(dim=1)
+            output_activation=torch.nn.Softmax(dim=1),
+            random_state = self._random_state
         ).to(self._device)
         self._actor_optimizer = actor_optimizer_fn(self._actor_local.parameters())
         # initialize agent hyperparameters
@@ -73,6 +85,14 @@ class SACAgent:
             "buffer_size": buffer_size,
             "random_state": self._random_state
         }
+        self._model_buffer_flag = model_buffer_flag
+        if model_buffer_flag:
+            self._model_memory = UniformReplayBuffer(
+                batch_size = batch_size,
+                buffer_size = buffer_size,
+                random_state = self._random_state)
+        if neighbour_flag:
+            self._neighbour_memory = None
         self._memory = PrioritizedExperienceReplayBuffer(**_replay_buffer_kwargs)
         if not self._temperature_decay_schedule:
             self._target_entropy = 0.98 * -np.log(1 / self._action_size )
@@ -93,8 +113,13 @@ class SACAgent:
         action_probabilities = self.get_action_probabilities(state)
         # action_probabilities_cpu = action_probabilities.cpu().numpy().astype('float64')
         # prob_sum = action_probabilities_cpu.sum()
-        normalized_action_probabilities = action_probabilities / action_probabilities.sum()
-        discrete_action = random.choice(range(self._action_size), p=normalized_action_probabilities.cpu())
+        sum_action_probabilities = action_probabilities.sum()
+        if sum_action_probabilities == 0.0:
+            warnings.warn("Sum action probabilities is zero.")
+            discrete_action = self._env.action_space.sample()
+        else:
+            normalized_action_probabilities = action_probabilities / sum_action_probabilities
+            discrete_action = self._random_state.choice(range(self._action_size), p=normalized_action_probabilities.cpu())
         return discrete_action
 
     def get_action_deterministically(self, state):
@@ -106,7 +131,7 @@ class SACAgent:
 
 
 
-    def learn(self, idxs: np.array, experiences: np.array, sampling_weights: np.array):
+    def learn(self, idxs: np.array, experiences: np.array, sampling_weights: np.array, buffer_type = "real"):
         """Update the agent's state based on a collection of recent experiences."""
         states, actions, rewards, next_states, dones = (torch.stack(vs,0).squeeze(1).to(self._device) for vs in zip(*experiences))
         
@@ -122,24 +147,34 @@ class SACAgent:
         if not self._temperature_decay_schedule:
             self._temperature_optimizer.zero_grad()
 
-        _sampling_weights = (torch.Tensor(sampling_weights).view((-1, 1))).to(self._device)
-        deltas, critic_loss, critic2_loss = self.critic_loss(states, actions, rewards, next_states, dones, _sampling_weights)
-
-        # update experience priorities
-        priorities = (deltas.abs()
-                            .cpu()
-                            .detach()
-                            .numpy()
-                            .flatten())
-        self._memory.update_priorities(idxs, priorities + 1e-6) # priorities must be positive!
         
+        
+        if buffer_type == "real":
+            _sampling_weights = (torch.Tensor(sampling_weights).view((-1, 1))).to(self._device)
+            deltas, critic_loss, critic2_loss = self.critic_loss(states, actions, rewards, next_states, dones, _sampling_weights)
+            actor_loss, log_action_probabilities = self.actor_loss(states)
+            # update experience priorities
+            priorities = (deltas.abs()
+                                .cpu()
+                                .detach()
+                                .numpy()
+                                .flatten())
+            self._memory.update_priorities(idxs, priorities + 1e-6) # priorities must be positive!
+
+        elif buffer_type == "neighbour":
+            _sampling_weights = (torch.Tensor(sampling_weights).view((-1, 1))).to(self._device)
+            deltas, critic_loss, critic2_loss = self.critic_loss(states, actions, rewards, next_states, dones, _sampling_weights, buffer_type = "neighbour")
+            actor_loss, log_action_probabilities = self.actor_loss(states, sampling_weights=_sampling_weights, buffer_type = "neighbour")
+        elif buffer_type == "model":
+            deltas, critic_loss, critic2_loss = self.critic_loss(states, actions, rewards, next_states, dones, None)
+            actor_loss, log_action_probabilities = self.actor_loss(states)
+        else:
+            raise ValueError("buffer_type must be 'real', 'neighbour' or 'model'")
         # compute the mean squared loss
         critic_loss.backward()
         critic2_loss.backward()
         self._critic_optimizer.step()
         self._critic_optimizer2.step()
-
-        actor_loss, log_action_probabilities = self.actor_loss(states)
 
         actor_loss.backward()
         self._actor_optimizer.step()
@@ -159,7 +194,7 @@ class SACAgent:
 
 
 
-    def critic_loss(self, states_tensor, actions_tensor, rewards_tensor, next_states_tensor, done_tensor, _sampling_weights):
+    def critic_loss(self, states_tensor, actions_tensor, rewards_tensor, next_states_tensor, done_tensor, _sampling_weights, buffer_type = "real"):
         with torch.no_grad():
             action_probabilities, log_action_probabilities = self.get_action_info(next_states_tensor)
             next_q_values_target = self._critic_target.forward(next_states_tensor)
@@ -179,14 +214,15 @@ class SACAgent:
         # deltas = [min(l1.item().abs(), l2.item().abs()) for l1, l2 in zip(critic_square_deltas, critic2_square_deltas)]
         # rewrite "deltas =" to be solvable with torch.min()
         deltas = torch.minimum(critic_square_deltas**2, critic2_square_deltas**2)
-        # critic_loss = torch.mean((critic_square_deltas * _sampling_weights)**2)
-        # critic2_loss = torch.mean((critic2_square_deltas * _sampling_weights)**2)
-        # TODO cross check if relevant to add sampling weights again (importance sampling)
-        critic_loss = torch.mean(critic_square_deltas**2)
-        critic2_loss = torch.mean(critic2_square_deltas**2)
+        if buffer_type == "neighbour":
+            critic_loss = torch.mean((critic_square_deltas * _sampling_weights)**2)
+            critic2_loss = torch.mean((critic2_square_deltas * _sampling_weights)**2)
+        else:
+            critic_loss = torch.mean(critic_square_deltas**2)
+            critic2_loss = torch.mean(critic2_square_deltas**2)
         return deltas, critic_loss, critic2_loss
 
-    def actor_loss(self, states_tensor):
+    def actor_loss(self, states_tensor, sampling_weights = None, buffer_type = "real"):
         action_probabilities, log_action_probabilities = self.get_action_info(states_tensor)
         # TODO Check if this is necessary
         with torch.no_grad():
@@ -194,8 +230,13 @@ class SACAgent:
             q_values_local2 = self._critic_local2(states_tensor)
         entropy = self._temperature * log_action_probabilities
         inside_term = entropy - torch.minimum(q_values_local, q_values_local2)
-        policy_loss = (action_probabilities * inside_term).sum(dim=1).mean()
-        return policy_loss, log_action_probabilities
+        policy_loss = (action_probabilities * inside_term).sum(dim=1)
+        if buffer_type == "neighbour":
+            sampling_weights = sampling_weights.squeeze()
+            assert sampling_weights.shape == policy_loss.shape, "Policy loss & Sampling weights are not the same shape."
+            policy_loss = (policy_loss * sampling_weights)
+        mean_policy_loss = policy_loss.mean()
+        return mean_policy_loss, log_action_probabilities
 
     def temperature_loss(self, log_action_probabilities):
         temperature_loss = -(self._log_temperature * (log_action_probabilities + self._target_entropy).detach()).mean()
@@ -246,5 +287,65 @@ class SACAgent:
             critic_loss, critic2_loss, actor_loss, temperature_loss = self.learn(idxs, experiences, sampling_weights)
             return critic_loss, critic2_loss, actor_loss, temperature_loss
         return 0.0, 0.0, 0.0, 0.0
-        # transition = (state, discrete_action, reward, next_state, done)
-        # self.learn(transition)
+
+    def add_to_model_replay_buffer(self,
+             states: np.array,
+             actions: int,
+             rewards: float,
+             next_states: np.array,
+             dones: bool) -> None:
+        """
+        Updates the agent's state based on feedback received from the environment.
+        
+        Parameters:
+        -----------
+        states (np.array): the previous states of the environment.
+        actions (int): the actions taken by the agent in the previous state.
+        rewards (float): the rewards received from the environment.
+        next_states (np.array): the resulting states of the environment following the action.
+        dones (bool): True is the training episode is finised; false otherwise.
+        """
+        for i in range(states.shape[0]):
+            if next_states[i] is None:
+                warnings.warn("add_to_model_replay_buffer: next_state is None")
+                next_state = torch.zeros_like(states[i]).to(self._device)
+            else:
+                next_state = next_states[i]
+            experience = Experience(states[i], actions[i].view(1,1), rewards[i].view(1,1), next_state, dones[i].view(1,1))
+            self._model_memory.add(experience)
+
+    def add_neighbour_buffer(self, neighbour_replay_buffer) -> None:
+        self._neighbour_memory = neighbour_replay_buffer
+
+    def learn_from_buffer(self):
+        """Update the agent's state based on a collection of recent simulated experiences."""
+        if len(self._model_memory)>=self._model_memory.batch_size:
+            self.beta = self._beta_annealing_schedule(self._number_episodes)
+            idxs, experiences = self._model_memory.uniform_sample(replace = True)
+            critic_loss, critic2_loss, actor_loss, temperature_loss = self.learn(idxs, experiences, None, buffer_type = "model")
+            return critic_loss, critic2_loss, actor_loss, temperature_loss
+        return 0.0, 0.0, 0.0, 0.0
+
+    def learn_from_neighbour_buffer(self, pretrain_flag = False):
+        """Update the agent's state based on a collection of recent simulated experiences."""
+        if pretrain_flag:
+            num_pretraining_steps = len(self._neighbour_memory)*10//(self._neighbour_memory.batch_size)
+            critic_losses = []
+            critic2_losses = []
+            actor_losses = []
+            temperature_losses = []
+            for i in range(num_pretraining_steps):
+                idxs, experiences, weights = self._neighbour_memory.sample_neighbour_experience()
+                critic_loss, critic2_loss, actor_loss, temperature_loss = self.learn(idxs, experiences, weights, buffer_type = "neighbour")
+                critic_losses.append(critic_loss)
+                critic2_losses.append(critic2_loss)
+                actor_losses.append(actor_loss)
+                temperature_losses.append(temperature_loss)
+            return critic_losses, critic2_losses, actor_losses, temperature_losses
+        if len(self._neighbour_memory)>=self._neighbour_memory.batch_size:
+            idxs, experiences, weights = self._neighbour_memory.sample_neighbour_experience()
+            critic_loss, critic2_loss, actor_loss, temperature_loss = self.learn(idxs, experiences, weights, buffer_type = "neighbour")
+            return critic_loss, critic2_loss, actor_loss, temperature_loss
+        else:
+            warnings.warn("Neighbour memory is not large enough.")
+        return 0.0, 0.0, 0.0, 0.0

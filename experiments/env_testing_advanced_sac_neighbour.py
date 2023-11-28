@@ -24,7 +24,8 @@ def test_run(
         GroundTypeInit = None, 
         deterministic = None, 
         seq_len = 10,
-        seed = 43
+        seed = 43,
+        rule_options = "humus_and_breaks"
         ):    
     param_dict = {   
     'batch_size': 256,
@@ -34,6 +35,7 @@ def test_run(
     'critic_lr': 0.0002,
     'number_hidden_units': 668,
     'prio_alpha': 0.343,
+    'neighbour_alpha': 1.0,
     'tau': 0.205,
     'temperature_initial': 0.847,
     'weight_decay': 0.0112}
@@ -56,7 +58,7 @@ def test_run(
         param_dict,
         agent_type = "sac", #["prioritized","sac","prioritized_symbolic","sac_symbolic"]
         environment_type = "advanced",
-        rule_options = None,
+        rule_options = rule_options,
         num_episodes = num_episodes,
         training_eval_ratio = training_eval_ratio,
         DryWetInit = DryWetInit,
@@ -64,4 +66,7 @@ def test_run(
         deterministic = deterministic,
         seq_len = seq_len,
         seed = seed,
+        neighbour_flag = True,
+        num_neighbours = 20,
+        neighbour_buffer_size = 5000,
         plot_flag = True)

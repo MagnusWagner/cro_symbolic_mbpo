@@ -3,17 +3,18 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-import math
-import random
 import gymnasium as gym
 import matplotlib.pyplot as plt
 from collections import namedtuple, deque
 from itertools import count
 import typing
 import numpy as np
-from models.utilities.ReplayBufferPrioritized import PrioritizedExperienceReplayBufferSymbolic, Experience_Symbolic
+from models.utilities.ReplayBufferPrioritized import PrioritizedExperienceReplayBufferSymbolic, Experience_Symbolic, UniformReplayBuffer
 import clingo
 from simulation_env.environment_maincrops.clingo_strings import program_start, program_end
+import warnings
+
+
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def synchronize_q_networks(q_network_1: nn.Module, q_network_2: nn.Module, tau: float = 1.0) -> None:
@@ -126,10 +127,12 @@ class DeepQAgent(Agent):
                 epsilon_decay_schedule: typing.Callable[[int], float],
                 delta_decay_schedule: typing.Callable[[int], float],
                 gamma: float,
+                random_state,
                 tau: int = 1,
-                seed: int = None,
                 rule_options = "all", # "all" or "only_break_rules_and_timing"
-                only_filter = False
+                only_filter = False,
+                model_buffer_flag = False,
+                neighbour_flag = False,
                 ) -> None:
         """
         Initialize a DeepQAgent.
@@ -152,19 +155,17 @@ class DeepQAgent(Agent):
         
         """
         self.env = env
-        self.rule_options = rule_options
         self._state_size = env.observation_space.shape[0]
         self._action_size = env.action_space.n
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.beta = None
         self.control = clingo.Control()
         self.only_filter = only_filter
+        self.rule_options = rule_options
         self._tau = tau
         
         # set seeds for reproducibility
-        self._random_state = np.random.RandomState() if seed is None else np.random.RandomState(seed)
-        if seed is not None:
-            torch.manual_seed(seed)
+        self._random_state = random_state
         if torch.cuda.is_available():
             torch.backends.cudnn.deterministic = True
             torch.backends.cudnn.benchmark = False
@@ -176,6 +177,14 @@ class DeepQAgent(Agent):
             "buffer_size": buffer_size,
             "random_state": self._random_state
         }
+        self._model_buffer_flag = model_buffer_flag
+        if model_buffer_flag:
+            self._model_memory = UniformReplayBuffer(
+                batch_size = batch_size,
+                buffer_size = buffer_size,
+                random_state = self._random_state)
+        if neighbour_flag:
+            self._neighbour_memory = None
         self._memory = PrioritizedExperienceReplayBufferSymbolic(**_replay_buffer_kwargs)
         self._beta_annealing_schedule = beta_annealing_schedule
         self._epsilon_decay_schedule = epsilon_decay_schedule
@@ -198,6 +207,7 @@ class DeepQAgent(Agent):
         
     def _initialize_q_network(self, number_hidden_units: int) -> nn.Module:
         """Create a neural network for approximating the action-value function."""
+        torch.manual_seed(self._random_state.get_state()[1][0])
         q_network = nn.Sequential(
             nn.Linear(in_features=self._state_size, out_features=number_hidden_units),
             nn.ReLU(),
@@ -266,8 +276,8 @@ class DeepQAgent(Agent):
               
 
     def select_action(self, state, filter_information, evaluation_flag = False):
-        sample = random.random()
-        sample_delta = random.random()
+        sample = self._random_state.random()
+        sample_delta = self._random_state.random()
         self.eps_threshold = self._epsilon_decay_schedule(self._number_timesteps)
         self.delta_threshold = self._delta_decay_schedule(self._number_timesteps)
         filtered_flag = False
@@ -295,8 +305,8 @@ class DeepQAgent(Agent):
                 return selected_action.item(), filtered_flag
             else:
                 if (sample_delta <= self.delta_threshold or self.only_filter) and possible_actions:
-                    # return torch.tensor([random.choice(possible_actions)], device=self._device, dtype=torch.long), True
-                    return random.choice(possible_actions), True
+                    # return torch.tensor([self._random_state.choice(possible_actions)], device=self._device, dtype=torch.long), True
+                    return self._random_state.choice(possible_actions), True
                 else:
                     selected_action = self.env.action_space.sample()
                     if possible_actions and selected_action in possible_actions:
@@ -304,7 +314,7 @@ class DeepQAgent(Agent):
                     # return torch.tensor([selected_action], device=self._device, dtype=torch.long), filtered_flag
                     return selected_action, filtered_flag
     
-    def learn(self, idxs: np.array, experiences: np.array, sampling_weights: np.array):
+    def learn(self, idxs: np.array, experiences: np.array, sampling_weights: np.array, buffer_type = "real"):
         """Update the agent's state based on a collection of recent experiences."""
         states, actions, rewards, next_states, dones, next_filter_masks = (torch.stack(vs,0).squeeze(1).to(self._device) for vs in zip(*experiences))
         
@@ -329,12 +339,19 @@ class DeepQAgent(Agent):
                             .detach()
                             .numpy()
                             .flatten())
-        self._memory.update_priorities(idxs, priorities + 1e-6) # priorities must be positive!
-        
-        # compute the mean squared loss
-        _sampling_weights = (torch.Tensor(sampling_weights)
-                                  .view((-1, 1))).to(self._device)
-        loss = torch.mean((deltas * _sampling_weights)**2)
+        if buffer_type == "real":
+            self._memory.update_priorities(idxs, priorities + 1e-6) # priorities must be positive!
+            _sampling_weights = (torch.Tensor(sampling_weights)
+                                    .view((-1, 1))).to(self._device)
+            loss = torch.mean((deltas * _sampling_weights)**2)
+        elif buffer_type == "model":
+            loss = torch.mean(deltas**2)
+        elif buffer_type == "neighbour":
+            _sampling_weights = (torch.Tensor(sampling_weights)
+                        .view((-1, 1))).to(self._device)
+            loss = torch.mean((deltas * _sampling_weights)**2)
+        else:
+            raise ValueError("buffer_type must be either real, model or neighbour.")
         
         # updates the parameters of the online network
         self._optimizer.zero_grad()
@@ -343,35 +360,7 @@ class DeepQAgent(Agent):
         
         synchronize_q_networks(self._target_q_network, self._online_q_network, tau=self._tau)
         return loss
-    
-    def save(self, filepath: str) -> None:
-        """
-        Saves the state of the DeepQAgent.
-        
-        Parameters:
-        -----------
-        filepath (str): filepath where the serialized state should be saved.
-        
-        Notes:
-        ------
-        The method uses `torch.save` to serialize the state of the q-network, 
-        the optimizer, as well as the dictionary of agent hyperparameters.
-        
-        """
-        checkpoint = {
-            "q-network-state": self._online_q_network.state_dict(),
-            "optimizer-state": self._optimizer.state_dict(),
-            "agent-hyperparameters": {
-                "alpha": self._memory.alpha,
-                "beta_annealing_schedule": self._beta_annealing_schedule,
-                "batch_size": self._memory.batch_size,
-                "buffer_size": self._memory.buffer_size,
-                "epsilon_decay_schedule": self._epsilon_decay_schedule,
-                "gamma": self._gamma,
-                "update_frequency": self._update_frequency
-            }
-        }
-        torch.save(checkpoint, filepath)
+
         
     def step(self,
              state: np.array,
@@ -404,8 +393,9 @@ class DeepQAgent(Agent):
         action = torch.tensor([action]).to(self._device)
         next_possible_actions = self.filter_actions(next_filter_information)
         next_filter_mask = torch.zeros(env.action_space.n)
-        if next_possible_actions and not done:
-            next_filter_mask[next_possible_actions] = 1.0
+        if next_possible_actions is not None and not done:
+            next_filter_mask = torch.ones(env.action_space.n)
+            next_filter_mask[next_possible_actions] = 0.0 # TODO Check if this is correct
         next_filter_mask = next_filter_mask.to(self._device)
         # action_allowed = filter_mask[action].view(1,1)
         experience = Experience_Symbolic(state, action.view(1,1), reward.view(1,1), next_state, torch.tensor([done]).view(1,1), next_filter_mask)
@@ -416,6 +406,99 @@ class DeepQAgent(Agent):
             avg_delta = self.learn(idxs, experiences, sampling_weights)
             return avg_delta
         return 0.0
+    
 
+    def add_to_model_replay_buffer(self,
+             states: np.array,
+             actions: int,
+             rewards: float,
+             next_states: np.array,
+             dones: bool,
+             next_filter_informations,
+             env) -> None:
+        """
+        Updates the agent's state based on feedback received from the environment.
+        
+        Parameters:
+        -----------
+        state (np.array): the previous state of the environment.
+        action (int): the action taken by the agent in the previous state.
+        reward (float): the reward received from the environment.
+        next_state (np.array): the resulting state of the environment following the action.
+        done (bool): True is the training episode is finised; false otherwise.
+        next_filter_information (numpy.array): information about the current state of the environment.
+        """
+        for i in range(states.shape[0]):
+            if next_states[i] is None:
+                warnings.warn("add_to_model_replay_buffer: next_state is None")
+                next_state = torch.zeros_like(states[i]).to(self._device)
+            else:
+                next_state = next_states[i]
+            next_possible_actions = self.filter_actions(next_filter_informations[i])
+            next_filter_mask = torch.zeros(env.action_space.n)
+            if next_possible_actions is not None and not dones[i]:
+                next_filter_mask = torch.ones(env.action_space.n)
+                next_filter_mask[next_possible_actions] = 0.0 # TODO Check if this is correct
+            next_filter_mask = next_filter_mask.to(self._device)
+            # action_allowed = filter_mask[action].view(1,1)
+            experience = Experience_Symbolic(states[i], actions[i].view(1,1), rewards[i].view(1,1), next_state, dones[i].view(1,1), next_filter_mask)
+            self._model_memory.add(experience)
 
+    def add_neighbour_buffer(self, neighbour_replay_buffer) -> None:
+        self._neighbour_memory = neighbour_replay_buffer
+    
+    def learn_from_buffer(self):
+        """Update the agent's state based on a collection of recent simulated experiences."""
+        if len(self._model_memory)>=self._model_memory.batch_size:
+            idxs, experiences = self._model_memory.uniform_sample(replace = True)
+            avg_delta = self.learn(idxs, experiences, None, buffer_type = "model")
+            return avg_delta
+        return 0.0
 
+    def learn_from_neighbour_buffer(self, pretrain_flag = False):
+        """Update the agent's state based on a collection of recent simulated experiences."""
+        if pretrain_flag:
+            num_pretraining_steps = len(self._neighbour_memory)*10//(self._neighbour_memory.batch_size)
+            avg_deltas = []
+            for i in range(num_pretraining_steps):
+                idxs, experiences, weights = self._neighbour_memory.sample_neighbour_experience()
+                avg_delta = self.learn(idxs, experiences, weights, buffer_type = "neighbour")
+                avg_deltas.append(avg_delta)
+            return avg_deltas
+        if len(self._neighbour_memory)>=self._neighbour_memory.batch_size:
+            idxs, experiences, weights = self._neighbour_memory.sample_neighbour_experience()
+            avg_delta = self.learn(idxs, experiences, weights, buffer_type = "neighbour")
+            return avg_delta
+        else:
+            warnings.warn("Neighbour memory is not large enough.")
+        return 0.0
+    
+
+    def save(self, filepath: str) -> None:
+        """
+        Saves the state of the DeepQAgent.
+        
+        Parameters:
+        -----------
+        filepath (str): filepath where the serialized state should be saved.
+        
+        Notes:
+        ------
+        The method uses `torch.save` to serialize the state of the q-network, 
+        the optimizer, as well as the dictionary of agent hyperparameters.
+        
+        """
+        checkpoint = {
+            "q-network-state": self._online_q_network.state_dict(),
+            "optimizer-state": self._optimizer.state_dict(),
+            "agent-hyperparameters": {
+                "alpha": self._memory.alpha,
+                "beta_annealing_schedule": self._beta_annealing_schedule,
+                "batch_size": self._memory.batch_size,
+                "buffer_size": self._memory.buffer_size,
+                "epsilon_decay_schedule": self._epsilon_decay_schedule,
+                "gamma": self._gamma,
+                "update_frequency": self._update_frequency
+            }
+        }
+        torch.save(checkpoint, filepath)

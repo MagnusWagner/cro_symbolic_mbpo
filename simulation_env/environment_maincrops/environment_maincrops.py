@@ -3,7 +3,6 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import Env
 from gymnasium.spaces import Box, Discrete
-from numpy import random
 from .data.mappings import crop_mapping_german, crop_mapping_german_rev, crop_mapping_eng, date_mapping, date_mapping_rev
 from .data.cropbreaks import cropbreaks, mf_groups, ap_groups
 from .data.kolbe import kolbe_matrix
@@ -34,14 +33,13 @@ with open(json_file_path, "r") as json_file:
     maincrop_properties = json.load(json_file)
 
 class CropRotationEnv(Env):
-    def __init__(self, seed = 42, seq_len = 8, NInit = 50.0, region = None, DryWetInit = None, GroundTypeInit = None,  deterministic = True):
+    def __init__(self, random_state, seq_len = 8, NInit = 50.0, region = None, DryWetInit = None, GroundTypeInit = None,  deterministic = True):
         if region:
            self.region = region
         else:
            self.region ="Bundesgebiet"
         self.deterministic = deterministic
-        self.seed = seed
-        random.seed(self.seed)
+        self.random_state = random_state
         # German names of crops used in the crop rotation
         self.crop_mapping_german = crop_mapping_german
         self.crop_mapping_german_rev = crop_mapping_german_rev
@@ -99,14 +97,14 @@ class CropRotationEnv(Env):
         if self.GroundTypeInit:
             self.GroundType = self.GroundTypeInit
         else:
-            self.GroundType = random.choice([-1.0,0.0,1.0])
+            self.GroundType = random_state.choice([-1.0,0.0,1.0])
 
         # Humus initialization
         self.HumusInit = self.ground_humus_dict["initial_humus"][self.GroundType]
         self.Humus = self.HumusInit
         # Probability to have a wet year
         self.DryWetInit = DryWetInit
-        self.DryWetProb = random.uniform(0.2,0.8)
+        self.DryWetProb = random_state.uniform(0.2,0.8)
         # Actual index, 1 = wet year, 0 = dry year
         if self.DryWetInit:
             self.DryWet = self.DryWetInit
@@ -131,42 +129,46 @@ class CropRotationEnv(Env):
         # GBM & average stats for prices and costs
         self.prices_avg = np.array([crop["Verkaufspreis"]["avg"] for crop in self.maincrop_yields.values()])
         self.prices_std = np.array([crop["Verkaufspreis"]["std"] for crop in self.maincrop_yields.values()])
-        self.prices = random.normal(self.prices_avg,self.prices_std)
+        self.prices = random_state.normal(self.prices_avg,self.prices_std)
         self.prices_gbm_avg = np.array([crop["Verkaufspreis"]["avg_gbm"] for crop in self.maincrop_yields.values()])
         self.prices_gbm_std = np.array([crop["Verkaufspreis"]["std_gbm"] for crop in self.maincrop_yields.values()])
 
         self.sowing_costs_avg = np.array([crop["Kosten"]["Saatgut"]["avg"] for crop in self.maincrop_yields.values()])
         self.sowing_costs_std = np.array([crop["Kosten"]["Saatgut"]["std"] for crop in self.maincrop_yields.values()])
-        self.sowing_costs = random.normal(self.sowing_costs_avg,self.sowing_costs_std)
+        self.sowing_costs = random_state.normal(self.sowing_costs_avg,self.sowing_costs_std)
         self.sowing_costs_gbm_avg = np.array([crop["Kosten"]["Saatgut"]["avg_gbm"] for crop in self.maincrop_yields.values()])
         self.sowing_costs_gbm_std = np.array([crop["Kosten"]["Saatgut"]["std_gbm"] for crop in self.maincrop_yields.values()])
 
         self.other_costs_avg = np.array([crop["Kosten"]["Sonstiges"]["avg"] for crop in self.maincrop_yields.values()])
         self.other_costs_std = np.array([crop["Kosten"]["Sonstiges"]["std"] for crop in self.maincrop_yields.values()])
-        self.other_costs = random.normal(self.other_costs_avg,self.other_costs_std)
+        self.other_costs = random_state.normal(self.other_costs_avg,self.other_costs_std)
         self.other_costs_gbm_avg = np.array([crop["Kosten"]["Sonstiges"]["avg_gbm"] for crop in self.maincrop_yields.values()])
         self.other_costs_gbm_std = np.array([crop["Kosten"]["Sonstiges"]["std_gbm"] for crop in self.maincrop_yields.values()])
         
         self.N_costs_avg = self.maincrop_yields["WINTERWEIZEN"]["Kosten"]["Duenger N"]["avg"]
         self.N_costs_std = self.maincrop_yields["WINTERWEIZEN"]["Kosten"]["Duenger N"]["std"]
-        self.N_costs = random.normal(self.N_costs_avg,self.N_costs_std)
+        self.N_costs = random_state.normal(self.N_costs_avg,self.N_costs_std)
         self.N_costs_gbm_avg = self.maincrop_yields["WINTERWEIZEN"]["Kosten"]["Duenger N"]["avg_gbm"]
         self.N_costs_gbm_std = self.maincrop_yields["WINTERWEIZEN"]["Kosten"]["Duenger N"]["std_gbm"]
 
         self.P_costs_avg = self.maincrop_yields["WINTERWEIZEN"]["Kosten"]["Duenger P"]["avg"]
         self.P_costs_std = self.maincrop_yields["WINTERWEIZEN"]["Kosten"]["Duenger P"]["std"]
-        self.P_costs = random.normal(self.P_costs_avg,self.P_costs_std)
+        self.P_costs = random_state.normal(self.P_costs_avg,self.P_costs_std)
         self.P_costs_gbm_avg = self.maincrop_yields["WINTERWEIZEN"]["Kosten"]["Duenger P"]["avg_gbm"]
         self.P_costs_gbm_std = self.maincrop_yields["WINTERWEIZEN"]["Kosten"]["Duenger P"]["std_gbm"]
 
         self.K_costs_avg = self.maincrop_yields["WINTERWEIZEN"]["Kosten"]["Duenger K"]["avg"]
         self.K_costs_std = self.maincrop_yields["WINTERWEIZEN"]["Kosten"]["Duenger K"]["std"]
-        self.K_costs = random.normal(self.K_costs_avg,self.K_costs_std)
+        self.K_costs = random_state.normal(self.K_costs_avg,self.K_costs_std)
         self.K_costs_gbm_avg = self.maincrop_yields["WINTERWEIZEN"]["Kosten"]["Duenger K"]["avg_gbm"]
         self.K_costs_gbm_std = self.maincrop_yields["WINTERWEIZEN"]["Kosten"]["Duenger K"]["std_gbm"]       
 
         # Calculate maximum reward
-        self.average_yields = np.array([self.maincrop_yields[crop_name]["Ertrag"][self.region]["avg"] if self.region in self.maincrop_yields[crop_name]["Ertrag"].keys() else self.maincrop_yields[crop_name]["Ertrag"]["Bundesgebiet"]["avg"] for crop_name in self.maincrop_yields.keys()])
+        self.general_average_yields = np.array([self.maincrop_yields[crop_name]["Ertrag"][self.region]["avg"] if self.region in self.maincrop_yields[crop_name]["Ertrag"].keys() else self.maincrop_yields[crop_name]["Ertrag"]["Bundesgebiet"]["avg"] for crop_name in self.maincrop_yields.keys()])
+        self.general_std_yields = np.array([self.maincrop_yields[crop_name]["Ertrag"][self.region]["std"] if self.region in self.maincrop_yields[crop_name]["Ertrag"].keys() else self.maincrop_yields[crop_name]["Ertrag"]["Bundesgebiet"]["std"] for crop_name in self.maincrop_yields.keys()])
+        self.std_yields = self.general_std_yields
+        self.average_yields = self.calculate_next_yield(self.general_average_yields, self.general_std_yields)
+        
         # TODO: Add costs
         # Calculate actual costs for nitrogen, phosphor and kalium fertilizations
         # maximum amount of nitrogen fertilization per hectar is 170 kg
@@ -227,6 +229,8 @@ class CropRotationEnv(Env):
         # Define observation and action space
         self.observation_space = Box(low=self.low, high=self.high, shape = (len(self.high),), dtype=np.float32)
         self.action_space = Discrete(self.num_crops) # Discrete actions: Select a crop to grow
+        self.observation_space.seed(int(self.random_state.get_state()[1][0]))
+        self.action_space.seed(int(self.random_state.get_state()[1][0]))
         
         # Initial state
         self.state = np.concatenate((np.array([self.N,self.P, self.K, self.Week, self.GroundType, self.DryWet, self.Humus,self.N_costs,self.P_costs,self.K_costs]), self.prices, self.sowing_costs, self.other_costs,self.previous_crops_selected_matrix.flatten())) 
@@ -246,7 +250,7 @@ class CropRotationEnv(Env):
                 (self.other_costs-self.low[10+2*self.num_crops:10+3*self.num_crops])/(self.high[10+2*self.num_crops:10+3*self.num_crops]-self.low[10+2*self.num_crops:10+3*self.num_crops]),
                 (self.previous_crops_selected_matrix.flatten())))
         # Initial crop of the crop sequence is selected randomly; initial state is stored for later usage
-        # self.state_index = random.randint(0,len(self.cropNamesEN)-1)
+        # self.state_index = random_state.randint(0,len(self.cropNamesEN)-1)
         # self.initial_index = self.state_index
         # self.state = convert_index_to_state(len(self.cropNamesEN),self.state_index)
         # self.initial = self.state
@@ -268,13 +272,13 @@ class CropRotationEnv(Env):
         }
 
     def calculate_next_yield(self, avg, std):
-        return random.normal(avg,std)
+        return self.random_state.normal(avg,std)
 
     def calculate_next_price(self, last_value, avg_gbm, std_gbm):
-        return last_value * np.exp((avg_gbm - (std_gbm ** 2) / 2) + std_gbm * random.normal())
+        return last_value * np.exp((avg_gbm - (std_gbm ** 2) / 2) + std_gbm * self.random_state.normal())
 
     def get_drywet(self, threshold):
-        rn = random.uniform(0,1)
+        rn = self.random_state.uniform(0,1)
         if rn <= threshold:
           return 1.0
         else:
@@ -344,10 +348,7 @@ class CropRotationEnv(Env):
             self.K_costs = np.minimum(self.K_costs, self.maximum_K_costs)
 
         
-        if self.region in self.maincrop_yields[crop_name]["Ertrag"]:
-            self.current_yield = self.calculate_next_yield(self.average_yields[action], self.maincrop_yields[crop_name]["Ertrag"][self.region]["std"]/2)
-        else:
-            self.current_yield = self.calculate_next_yield(self.average_yields[action], self.maincrop_yields[crop_name]["Ertrag"]["Bundesgebiet"]["std"]/2)
+        self.current_yield = self.calculate_next_yield(self.average_yields[action], self.std_yields[action])
 
         if self.Humus < self.ground_humus_dict["minimum_humus"][self.GroundType]:
             humus_yield_factor = max(0.3,1.0+(self.Humus-self.ground_humus_dict["minimum_humus"][self.GroundType])*0.38)
@@ -389,6 +390,7 @@ class CropRotationEnv(Env):
         
         # Check if crop is breaking MF rules
         # following the scheme:
+        # (number of occurences, maximum number of occurences, window length)
         # (2, 1, 2) 0.5
         # (2, 1, 3) 0.66
         # (3, 1, 3) 0.33
@@ -651,10 +653,10 @@ class CropRotationEnv(Env):
         self.Week = 0
         self.cropRotationSequenceLength = self.cropRotationSequenceLengthInit
         if not self.GroundTypeInit:
-            self.GroundType = random.choice([-1.0,0.0,1.0])
+            self.GroundType = self.random_state.choice([-1.0,0.0,1.0])
         self.HumusInit = self.ground_humus_dict["initial_humus"][self.GroundType]
         self.Humus = self.HumusInit
-        self.DryWetProb = random.uniform(0.2,0.8) # maybe change to stay the same
+        self.DryWetProb = self.random_state.uniform(0.2,0.8) # maybe change to stay the same
         if not self.DryWetInit:
             self.DryWet = self.get_drywet(self.DryWetProb)
 
@@ -665,12 +667,12 @@ class CropRotationEnv(Env):
 
         # Prices & Costs
         # GBM & average stats for prices and costs
-        self.prices = random.normal(self.prices_avg,self.prices_std)
-        self.sowing_costs = random.normal(self.sowing_costs_avg,self.sowing_costs_std)
-        self.other_costs = random.normal(self.other_costs_avg,self.other_costs_std)
-        self.N_costs = random.normal(self.N_costs_avg,self.N_costs_std)
-        self.P_costs = random.normal(self.P_costs_avg,self.P_costs_std)
-        self.K_costs = random.normal(self.K_costs_avg,self.K_costs_std)
+        self.prices = self.random_state.normal(self.prices_avg,self.prices_std)
+        self.sowing_costs = self.random_state.normal(self.sowing_costs_avg,self.sowing_costs_std)
+        self.other_costs = self.random_state.normal(self.other_costs_avg,self.other_costs_std)
+        self.N_costs = self.random_state.normal(self.N_costs_avg,self.N_costs_std)
+        self.P_costs = self.random_state.normal(self.P_costs_avg,self.P_costs_std)
+        self.K_costs = self.random_state.normal(self.K_costs_avg,self.K_costs_std)
 
         # Set state and reset yield and reward
         self.state = np.concatenate((np.array([self.N,self.P, self.K, self.Week, self.GroundType, self.DryWet, self.Humus,self.N_costs,self.P_costs,self.K_costs]), self.prices, self.sowing_costs, self.other_costs,self.previous_crops_selected_matrix.flatten())) 
@@ -705,3 +707,5 @@ class CropRotationEnv(Env):
         }
 
         return self.state_normalized, self.filter_information
+    
+

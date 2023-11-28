@@ -16,8 +16,9 @@ def convert_index_to_state(length, index):
   return state
 
 class CropRotationEnv(Env):
-    def __init__(self, seed = 42, seq_len = 7, NMin = 75, NMax = 76, neg_reward = -500):
-        random.seed(seed)
+    def __init__(self, random_state, seq_len = 7, NMin = 75, NMax = 76, neg_reward = -500):
+        self.random_state = random_state
+        
         self.cropRotationSequenceLengthStatic = seq_len
         self.NMin = NMin
         self.NMax = NMax
@@ -66,14 +67,14 @@ class CropRotationEnv(Env):
         self.observation_space = Box(low=np.zeros(len(self.cropNamesEN)), high=np.ones(len(self.cropNamesEN)), shape = (len(self.cropNamesEN),), dtype=np.int16)
         
         # Initial crop of the crop sequence is selected randomly; initial state is stored for later usage
-        self.state_index = random.randint(0,len(self.cropNamesEN)-1)
+        self.state_index = self.random_state.randint(0,len(self.cropNamesEN)-1)
         self.initial_index = self.state_index
         self.state = convert_index_to_state(len(self.cropNamesEN),self.state_index)
         self.initial = self.state
         
 
         # Soil is initialized with a nitrogen level of NMin; current yield and reward are set to 0; crop rotation sequence length set to 10
-        self.soilNitrogenLevelInit = random.uniform(a = self.NMin, b = self.NMax)
+        self.soilNitrogenLevelInit = self.random_state.uniform(a = self.NMin, b = self.NMax)
         self.soilNitrogenLevel = self.soilNitrogenLevelInit
         self.currentYield = 0
         self.reward = 0
@@ -172,7 +173,7 @@ class CropRotationEnv(Env):
 
     # Reset environment
     def reset(self):
-        self.state_index= random.randint(0,len(self.cropNamesEN)-1)
+        self.state_index= self.random_state.randint(0,len(self.cropNamesEN)-1)
         self.state = convert_index_to_state(len(self.cropNamesEN),self.state_index)
         self.soilNitrogenLevel = self.soilNitrogenLevelInit
         self.currentYield = 0

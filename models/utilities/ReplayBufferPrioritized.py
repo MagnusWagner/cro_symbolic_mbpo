@@ -102,10 +102,12 @@ class UniformReplayBuffer:
     def uniform_sample(
             self, 
             replace,
-            batch_size,
+            batch_size = None,
             ) -> np.array:
         """Sample a batch of experiences from memory."""
         # use sampling scheme to determine which experiences to use for learning
+        if batch_size is None:
+            batch_size = self._batch_size
         idxs = self._random_state.choice(np.arange(self._buffer_length),
                                          size=batch_size,
                                          replace=replace)
@@ -113,7 +115,13 @@ class UniformReplayBuffer:
         if batch is None:
             raise ValueError("batch is None")
         return idxs, batch
+    
 
+
+
+#############################
+##### PrioritizedBuffer #####
+#############################
 class PrioritizedExperienceReplayBuffer:
     """Fixed-size buffer to store priority, Experience tuples."""
 
@@ -121,6 +129,7 @@ class PrioritizedExperienceReplayBuffer:
                  batch_size: int,
                  buffer_size: int,
                  alpha: float = 0.0,
+                 neighbour_alpha: float = 0.0,
                  random_state: np.random.RandomState = None) -> None:
         """
         Initialize an ExperienceReplayBuffer object.
@@ -138,6 +147,7 @@ class PrioritizedExperienceReplayBuffer:
         self._buffer_length = 0 # current number of prioritized experience tuples in buffer
         self._buffer = np.empty(self._buffer_size, dtype=[("priority", np.float32), ("experience", Experience)])
         self._alpha = alpha
+        self._neighbour_alpha = neighbour_alpha
         self._random_state = np.random.RandomState() if random_state is None else random_state
         
     def __len__(self) -> int:
@@ -177,6 +187,24 @@ class PrioritizedExperienceReplayBuffer:
             self._buffer[self._buffer_length] = (priority, experience)
             self._buffer_length += 1
 
+    def add_neighbour_experience(self, experience: Experience, priority: float) -> None:
+        """Add a new experience to memory."""
+        if self.is_full():
+            if priority > self._buffer["priority"].min():
+                idx = self._buffer["priority"].argmin()
+                self._buffer[idx] = (priority, experience)
+            elif priority == self._buffer["priority"].min():
+                ### find all idxs where priority is equal to min
+                idxs = np.where(self._buffer["priority"] == self._buffer["priority"].min())[0]
+                ### choose random idx from idxs
+                idx = np.random.choice(idxs)
+                self._buffer[idx] = (priority, experience)
+            else:
+                pass # low priority experiences should not be included in buffer
+        else:
+            self._buffer[self._buffer_length] = (priority, experience)
+            self._buffer_length += 1
+
     def is_empty(self) -> bool:
         """True if the buffer is empty; False otherwise."""
         return self._buffer_length == 0
@@ -201,6 +229,29 @@ class PrioritizedExperienceReplayBuffer:
         normalized_weights = weights / weights.max()
         
         return idxs, experiences, normalized_weights
+    
+    def sample_neighbour_experience(self) -> typing.Tuple[np.array, np.array, np.array]:
+        """Sample a batch of experiences from memory."""
+        # use sampling scheme to determine which experiences to use for learning
+        ps = self._buffer[:self._buffer_length]["priority"]
+        sampling_probs = ps**self._neighbour_alpha / np.sum(ps**self._neighbour_alpha)
+        idxs = self._random_state.choice(np.arange(ps.size),
+                                         size=self._batch_size,
+                                         replace=True,
+                                         p=sampling_probs)
+        
+        # select the experiences and compute sampling weights
+        experiences = self._buffer["experience"][idxs]        
+        ps_selected = ps[idxs]
+        return idxs, experiences, ps_selected 
+    
+    def sample_uniformly(self) -> typing.Tuple[np.array, np.array, np.array]:
+        """Sample a batch of experiences uniformly from memory."""
+        idxs = self._random_state.choice(np.arange(self._buffer_length),
+                                         size=self._batch_size,
+                                         replace=True)
+        experiences = self._buffer["experience"][idxs]   
+        return idxs, experiences
 
     def update_priorities(self, idxs: np.array, priorities: np.array) -> None:
         """Update the priorities associated with particular experiences."""
@@ -216,6 +267,7 @@ class PrioritizedExperienceReplayBufferSymbolic:
                  batch_size: int,
                  buffer_size: int,
                  alpha: float = 0.0,
+                 neighbour_alpha: float = 0.0,
                  random_state: np.random.RandomState = None) -> None:
         """
         Initialize an ExperienceReplayBuffer object.
@@ -233,6 +285,7 @@ class PrioritizedExperienceReplayBufferSymbolic:
         self._buffer_length = 0 # current number of prioritized experience tuples in buffer
         self._buffer = np.empty(self._buffer_size, dtype=[("priority", np.float32), ("experience", Experience_Symbolic)])
         self._alpha = alpha
+        self._neighbour_alpha = neighbour_alpha
         self._random_state = np.random.RandomState() if random_state is None else random_state
         
     def __len__(self) -> int:
@@ -267,6 +320,24 @@ class PrioritizedExperienceReplayBufferSymbolic:
             self._buffer[self._buffer_length] = (priority, experience)
             self._buffer_length += 1
 
+    def add_neighbour_experience(self, experience: Experience, priority: float) -> None:
+        """Add a new experience to memory."""
+        if self.is_full():
+            if priority > self._buffer["priority"].min():
+                idx = self._buffer["priority"].argmin()
+                self._buffer[idx] = (priority, experience)
+            elif priority == self._buffer["priority"].min():
+                ### find all idxs where priority is equal to min
+                idxs = np.where(self._buffer["priority"] == self._buffer["priority"].min())[0]
+                ### choose random idx from idxs
+                idx = np.random.choice(idxs)
+                self._buffer[idx] = (priority, experience)
+            else:
+                pass # low priority experiences should not be included in buffer
+        else:
+            self._buffer[self._buffer_length] = (priority, experience)
+            self._buffer_length += 1
+
     def is_empty(self) -> bool:
         """True if the buffer is empty; False otherwise."""
         return self._buffer_length == 0
@@ -291,6 +362,30 @@ class PrioritizedExperienceReplayBufferSymbolic:
         normalized_weights = weights / weights.max()
         
         return idxs, experiences, normalized_weights
+    
+
+    def sample_neighbour_experience(self) -> typing.Tuple[np.array, np.array, np.array]:
+        """Sample a batch of experiences from memory."""
+        # use sampling scheme to determine which experiences to use for learning
+        ps = self._buffer[:self._buffer_length]["priority"]
+        sampling_probs = ps**self._neighbour_alpha / np.sum(ps**self._neighbour_alpha)
+        idxs = self._random_state.choice(np.arange(ps.size),
+                                         size=self._batch_size,
+                                         replace=True,
+                                         p=sampling_probs)
+        
+        # select the experiences and compute sampling weights
+        experiences = self._buffer["experience"][idxs]        
+        ps_selected = ps[idxs]
+        return idxs, experiences, ps_selected 
+    
+    def sample_uniformly(self) -> typing.Tuple[np.array, np.array, np.array]:
+        """Sample a batch of experiences uniformly from memory."""
+        idxs = self._random_state.choice(np.arange(self._buffer_length),
+                                         size=self._batch_size,
+                                         replace=True)
+        experiences = self._buffer["experience"][idxs]   
+        return idxs, experiences
 
     def update_priorities(self, idxs: np.array, priorities: np.array) -> None:
         """Update the priorities associated with particular experiences."""

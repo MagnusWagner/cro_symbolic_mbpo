@@ -3,15 +3,13 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-import math
-import random
 import gymnasium as gym
 import matplotlib.pyplot as plt
 from collections import namedtuple, deque
 from itertools import count
 import typing
 import numpy as np
-from models.utilities.ReplayBufferPrioritized import PrioritizedExperienceReplayBuffer, Experience
+from models.utilities.ReplayBufferPrioritized import PrioritizedExperienceReplayBuffer, Experience, UniformReplayBuffer
 import warnings
 
 def synchronize_q_networks(q_network_1: nn.Module, q_network_2: nn.Module, tau: float = 1.0) -> None:
@@ -107,8 +105,11 @@ class DeepQAgent(Agent):
                 beta_annealing_schedule: typing.Callable[[int], float],
                 epsilon_decay_schedule: typing.Callable[[int], float],
                 gamma: float,
+                random_state,
                 tau: int = 1,
-                seed: int = None) -> None:
+                model_buffer_flag = False,
+                neighbour_flag = False,
+                ) -> None:
         """
         Initialize a DeepQAgent.
         
@@ -129,17 +130,16 @@ class DeepQAgent(Agent):
         seed (int): random seed
         
         """
-        self._tau = tau
+
         self.env = env
         self._state_size = env.observation_space.shape[0]
         self._action_size = env.action_space.n
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.beta = None
+        self._tau = tau
         
         # set seeds for reproducibility
-        self._random_state = np.random.RandomState() if seed is None else np.random.RandomState(seed)
-        if seed is not None:
-            torch.manual_seed(seed)
+        self._random_state = random_state
         if torch.cuda.is_available():
             torch.backends.cudnn.deterministic = True
             torch.backends.cudnn.benchmark = False
@@ -151,6 +151,14 @@ class DeepQAgent(Agent):
             "buffer_size": buffer_size,
             "random_state": self._random_state
         }
+        self._model_buffer_flag = model_buffer_flag
+        if model_buffer_flag:
+            self._model_memory = UniformReplayBuffer(
+                batch_size = batch_size,
+                buffer_size = buffer_size,
+                random_state = self._random_state)
+        if neighbour_flag:
+            self._neighbour_memory = None
         self._memory = PrioritizedExperienceReplayBuffer(**_replay_buffer_kwargs)
         self._beta_annealing_schedule = beta_annealing_schedule
         self._epsilon_decay_schedule = epsilon_decay_schedule
@@ -172,6 +180,7 @@ class DeepQAgent(Agent):
         
     def _initialize_q_network(self, number_hidden_units: int) -> nn.Module:
         """Create a neural network for approximating the action-value function."""
+        torch.manual_seed(self._random_state.get_state()[1][0])
         q_network = nn.Sequential(
             nn.Linear(in_features=self._state_size, out_features=number_hidden_units),
             nn.ReLU(),
@@ -190,7 +199,7 @@ class DeepQAgent(Agent):
             with torch.no_grad():
                 return self._online_q_network(state).argmax().view(1, 1).item()
         else:
-            sample = random.random()
+            sample = self._random_state.random()
             self.eps_threshold = self._epsilon_decay_schedule(self._number_timesteps)
             # self.eps_threshold = 0.2
             if sample > self.eps_threshold:
@@ -205,7 +214,7 @@ class DeepQAgent(Agent):
             else:
                 return self.env.action_space.sample()
     
-    def learn(self, idxs: np.array, experiences: np.array, sampling_weights: np.array):
+    def learn(self, idxs: np.array, experiences: np.array, sampling_weights: np.array, buffer_type = "real"):
         """Update the agent's state based on a collection of recent experiences."""
         states, actions, rewards, next_states, dones = (torch.stack(vs,0).squeeze(1).to(self._device) for vs in zip(*experiences))
         
@@ -229,14 +238,22 @@ class DeepQAgent(Agent):
                             .detach()
                             .numpy()
                             .flatten())
-        self._memory.update_priorities(idxs, priorities + 1e-6) # priorities must be positive!
-        
-        # compute the mean squared loss
-        _sampling_weights = (torch.Tensor(sampling_weights)
-                                  .view((-1, 1))).to(self._device)
-        #TODO Switch to multiply loss with sampling weights again.
-        loss = torch.mean((deltas * _sampling_weights)**2)
-        # loss = torch.mean(deltas**2)
+        if buffer_type == "real":
+            self._memory.update_priorities(idxs, priorities + 1e-6) # priorities must be positive!
+            # compute the mean squared loss
+            _sampling_weights = (torch.Tensor(sampling_weights)
+                                    .view((-1, 1))).to(self._device)
+            #TODO Switch to multiply loss with sampling weights again.
+            loss = torch.mean((deltas * _sampling_weights)**2)
+        elif buffer_type == "model":
+            loss = torch.mean(deltas**2)
+        elif buffer_type == "neighbour":
+            _sampling_weights = (torch.Tensor(sampling_weights)
+                        .view((-1, 1))).to(self._device)
+            loss = torch.mean((deltas * _sampling_weights)**2)
+        else:
+            raise ValueError("buffer_type must be either real, model or neighbour.")
+
         
         # updates the parameters of the online network
         self._optimizer.zero_grad()
@@ -269,7 +286,6 @@ class DeepQAgent(Agent):
         else:
             self._number_timesteps += 1
         if next_state is None:
-
             next_state = torch.zeros_like(state).to(self._device)
         action = torch.tensor([action]).to(self._device)
         experience = Experience(state, action.view(1,1), reward.view(1,1), next_state, torch.tensor([done]).view(1,1))
@@ -302,16 +318,47 @@ class DeepQAgent(Agent):
             if next_states[i] is None:
                 warnings.warn("add_to_model_replay_buffer: next_state is None")
                 next_state = torch.zeros_like(states[i]).to(self._device)
-            experience = Experience(states[i], actions[i].view(1,1), rewards[i].view(1,1), next_states[i], dones[i].view(1,1))
-            self._memory.add(experience)
+            else:
+                next_state = next_states[i]
+            experience = Experience(states[i], actions[i].view(1,1), rewards[i].view(1,1), next_state, dones[i].view(1,1))
+            self._model_memory.add(experience)
 
+
+    def add_neighbour_buffer(self, neighbour_replay_buffer) -> None:
+        self._neighbour_memory = neighbour_replay_buffer
+
+    # def learn_from_buffer(self):
+    #     """Update the agent's state based on a collection of recent simulated experiences."""
+    #     if len(self._model_memory)>=self._model_memory.batch_size:
+    #         self.beta = self._beta_annealing_schedule(self._number_episodes)
+    #         idxs, experiences, sampling_weights = self._model_memory.sample(self.beta)
+    #         avg_delta = self.learn(idxs, experiences, sampling_weights, buffer_type = "model")
+    #         return avg_delta
+    #     return 0.0
     def learn_from_buffer(self):
-        """Update the agent's state based on a collection of recent experiences."""
-        if len(self._memory)>=self._memory.batch_size:
-            self.beta = self._beta_annealing_schedule(self._number_episodes)
-            idxs, experiences, sampling_weights = self._memory.sample(self.beta)
-            avg_delta = self.learn(idxs, experiences, sampling_weights)
+        """Update the agent's state based on a collection of recent simulated experiences."""
+        if len(self._model_memory)>=self._model_memory.batch_size:
+            idxs, experiences = self._model_memory.uniform_sample(replace = True)
+            avg_delta = self.learn(idxs, experiences, None, buffer_type = "model")
             return avg_delta
+        return 0.0
+
+    def learn_from_neighbour_buffer(self, pretrain_flag = False):
+        """Update the agent's state based on a collection of recent simulated experiences."""
+        if pretrain_flag:
+            num_pretraining_steps = len(self._neighbour_memory)*10//(self._neighbour_memory.batch_size)
+            avg_deltas = []
+            for i in range(num_pretraining_steps):
+                idxs, experiences, weights = self._neighbour_memory.sample_neighbour_experience()
+                avg_delta = self.learn(idxs, experiences, weights, buffer_type = "neighbour")
+                avg_deltas.append(avg_delta)
+            return avg_deltas
+        if len(self._neighbour_memory)>=self._neighbour_memory.batch_size:
+            idxs, experiences, weights = self._neighbour_memory.sample_neighbour_experience()
+            avg_delta = self.learn(idxs, experiences, weights, buffer_type = "neighbour")
+            return avg_delta
+        else:
+            warnings.warn("Neighbour memory is not large enough.")
         return 0.0
     
 
@@ -343,6 +390,3 @@ class DeepQAgent(Agent):
             }
         }
         torch.save(checkpoint, filepath)
-
-
-

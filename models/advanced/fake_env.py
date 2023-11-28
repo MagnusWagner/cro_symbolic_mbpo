@@ -1,9 +1,5 @@
 # SET LENGTH HERE
 import numpy as np
-import gymnasium as gym
-from gymnasium import Env
-from gymnasium.spaces import Box, Discrete
-from numpy import random
 from simulation_env.environment_maincrops.data.mappings import crop_mapping_german, crop_mapping_german_rev, crop_mapping_eng, date_mapping, date_mapping_rev
 from simulation_env.environment_maincrops.data.cropbreaks import cropbreaks, mf_groups, ap_groups
 from simulation_env.environment_maincrops.data.kolbe import kolbe_matrix
@@ -49,11 +45,9 @@ with open(json_file_path, "r") as json_file:
 
 class FakeEnv:
 
-    def __init__(self, device, seed, custom_model_setting_dict = None):
+    def __init__(self, device, random_state, custom_model_setting_dict = None):
         self.device = device
-        self.seed = seed
-        random.seed(self.seed)
-
+        self.random_state = random_state
 
         # Maincrop yields
         self.maincrop_yields = maincrop_yields
@@ -129,7 +123,7 @@ class FakeEnv:
         self.gbm_max = torch.concatenate((torch.tensor([self.maximum_N_costs, self.maximum_P_costs, self.maximum_K_costs]),self.maximum_prices, self.maximum_sowing_costs, self.maximum_other_costs)).to(self.device)
         # The previous crop selection is one-hot-encoded and therefore stays between 0 and 1
         self.model_loss_optimizer_pool = get_model_loss_optimizer_pool(
-             seed = self.seed, 
+             random_state = self.random_state, 
              device = self.device, 
              custom_model_setting_dict=custom_model_setting_dict)
 
@@ -143,7 +137,7 @@ class FakeEnv:
     def calculate_next_gbms(self, last_values):
         last_values = last_values * self.gbm_max
         assert last_values.shape == self.gbm_avg.shape == self.gbm_std.shape
-        return torch.minimum(self.gbm_max,last_values * torch.exp((self.gbm_avg - (self.gbm_std ** 2) / 2) + self.gbm_std * random.normal()))/self.gbm_max
+        return torch.minimum(self.gbm_max,last_values * torch.exp((self.gbm_avg - (self.gbm_std ** 2) / 2) + self.gbm_std * self.random_state.normal()))/self.gbm_max
 
     def get_next_state_from_prediction(self, state, predicted_stochastic_multi, action):
         # state = torch.clone(state[0])
@@ -257,7 +251,9 @@ class FakeEnv:
                 for idx_model_key, model_key in enumerate(self.model_loss_optimizer_pool.keys()):
                     model_idx = model_idxs[idx_model_key]
                     input_filtered = inputs[i_rollout_episode,self.model_loss_optimizer_pool[model_key]["input_idxs"]]
-                    output = self.model_loss_optimizer_pool[model_key]["models"][model_idx](input_filtered)
+                    model = self.model_loss_optimizer_pool[model_key]["models"][model_idx]
+                    model.eval()
+                    output = model(input_filtered)
                     if model_key == "reward":
                         reward = output
                     elif model_key == "stochastic_multi":
@@ -272,7 +268,7 @@ class FakeEnv:
                 next_states = torch.cat((next_states, next_state), dim = 0)
         assert next_states.shape[1] == self.state_size
         assert next_states.shape[0] == inputs.shape[0]
-        return next_states, rewards, None # TODO third value should be filter_information
+        return next_states, rewards
     
     def eval(
             self,
@@ -291,11 +287,13 @@ class FakeEnv:
                 mean_kl_losses[model_key] = []
                 
                 for model_idx in range(len(self.model_loss_optimizer_pool[model_key]["models"])):
+                    model = self.model_loss_optimizer_pool[model_key]["models"][model_idx]
+                    model.eval()
                     pres = []
                     mse_losses_for_model_idx = []
                     kl_losses_for_model_idx = []
                     for i in range(10):
-                        pre = self.model_loss_optimizer_pool[model_key]["models"][model_idx](test_inputs_filtered)
+                        pre = model(test_inputs_filtered)
                         pres.append(pre)
                         mse_loss = mse_loss_fn(pre, test_outputs_filtered).item()
                         kl_loss = kl_loss_fn(self.model_loss_optimizer_pool[model_key]["models"][model_idx]).item()
@@ -326,8 +324,10 @@ class FakeEnv:
             pres = []
             mse_losses_for_model_idx = []
             kl_losses_for_model_idx = []
+            model = self.model_loss_optimizer_pool[model_key]["models"][model_idx]
+            model.eval()
             for i in range(10):
-                pre = self.model_loss_optimizer_pool[model_key]["models"][model_idx](test_inputs_filtered)
+                pre = model(test_inputs_filtered)
                 pres.append(pre)
                 mse_loss = mse_loss_fn(pre, test_outputs_filtered).item()
                 kl_loss = kl_loss_fn(self.model_loss_optimizer_pool[model_key]["models"][model_idx]).item()

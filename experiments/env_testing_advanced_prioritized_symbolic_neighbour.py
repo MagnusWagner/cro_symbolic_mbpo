@@ -4,10 +4,6 @@ import torch
 from torch import optim
 from itertools import count
 import pprint
-import optuna
-from optuna.trial import TrialState
-from numpy import random
-import math
 from experiments.utilities import single_training_run
 
 # Create pprinter
@@ -20,6 +16,7 @@ def test_run(num_episodes = 500, DryWetInit = None, GroundTypeInit = None, deter
     'beta': 0.00575,
     'buffer_size': 10000,
     'alpha': 0.2891978839719468,
+    'neighbour_alpha': 1.0,
     'delta_max': 0.8905885911276994,
     'epsilon_max': 0.8037188702073559,
     'lr': 8.351864571435923e-05,
@@ -54,6 +51,9 @@ def test_run(num_episodes = 500, DryWetInit = None, GroundTypeInit = None, deter
         deterministic = deterministic,
         seq_len = seq_len,
         seed = seed,
+        neighbour_flag = True,
+        num_neighbours = 50,
+        neighbour_buffer_size = 5000,
         plot_flag = True)
 
 
