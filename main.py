@@ -226,5 +226,6 @@ from experiments.utilities import check_filter
 #     only_filter = False)
 
 
-from experiments.evaluations.gather_evaluation_data import gather_evaluation_data
+from experiments.evaluations.gather_evaluation_data import gather_evaluation_data, gather_pretrained_evaluation_data
 gather_evaluation_data()
+# gather_pretrained_evaluation_data()

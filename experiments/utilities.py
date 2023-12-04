@@ -64,6 +64,7 @@ def single_training_run(
         neighbourhood_replay_buffer = None,
         plot_flag = False,
         print_flag = True,
+        pretrained_agent = None,
         seed = 43):
         
     
@@ -88,10 +89,13 @@ def single_training_run(
         GroundTypeInit = GroundTypeInit, 
         deterministic = deterministic
         )
+    agent = None
     
     if not random_flag:
         # Set Agent
-        if agent_type == "prioritized":
+        if pretrained_agent is not None:
+            agent = pretrained_agent
+        elif agent_type == "prioritized":
             agent = DQN_Prioritized(env = env,
                     number_hidden_units = param_dict["number_hidden_units"],
                     optimizer_fn = lambda parameters: optim.AdamW(parameters, lr=param_dict["lr"], amsgrad=False, weight_decay = param_dict["weight_decay"]),
@@ -283,7 +287,7 @@ def single_training_run(
 
 
     ### Neighbour pre-training
-    if neighbour_flag:
+    if neighbour_flag and pretrained_agent is None:
         if sac_flag:
             _, _, _, _= agent.learn_from_neighbour_buffer(pretrain_flag = True)
         else:
@@ -527,6 +531,7 @@ def single_training_run(
             plot_losses(np.log(average_losses))
         if mbrl_flag:
             plot_mse_and_kl_losses_per_key(dynamics_all_mean_mse_losses, dynamics_all_mean_kl_losses)
+
     if sac_flag and not only_filter and not random_flag:
         results = {
             "avg_critic1_losses":avg_critic1_losses,
@@ -553,7 +558,10 @@ def single_training_run(
             "cumulative_training_rewards":cumulative_training_rewards,
             "crops_selected_idxs_list":crops_selected_idxs_list
         }
-    return results
+    if mbrl_flag:
+        return results, (agent, fake_env)
+    else:
+        return results, agent
 
 def check_filter(agent_type: str): #["prioritized_symbolic","sac_symbolic"]
     num_episodes = 100
