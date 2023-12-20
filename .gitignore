@@ -1,2 +1,4 @@
 experiments/evaluations/results/
-plots/
+plots/*
+*.png
+*.pdf
