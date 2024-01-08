@@ -1,8 +1,4 @@
 hyperparam_config = {
-    "basic": {
-        "prioritized": {},
-        "sac": {},
-    },
     "advanced": {
         "prioritized": {
             "non-symbolic": {

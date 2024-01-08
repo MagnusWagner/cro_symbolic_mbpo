@@ -1,0 +1,13 @@
+Agent type,batch_size,beta,buffer_size,alpha,epsilon_max,lr,number_hidden_units,tau,weight_decay,num_dynamics_model_training_steps,dynamics_model_batch_size,rollout_length,delta_max,agent_training_steps,num_rollouts,neighbour_alpha,actor_lr,critic_lr,prio_alpha,temperature_initial
+Model-free DQN agent without symbolic planning,256,0.00575,10000,0.3578,0.7248,5.924e-05,784,0.06744,6.307e-09,-,-,-,-,-,-,-,-,-,-,-
+Model-based DQN agent without symbolic planning,256,0.00575,10000,0.8013,0.8276,9.892e-05,360,0.06091,1.721e-06,10,256,1,0.9,1,17,-,-,-,-,-
+Model-free DQN agent with neighbour experience without symbolic planning,256,0.001414,10000,0.2831,0.7248,1.901e-05,784,0.2631,6.031e-07,-,-,-,-,-,-,0.476,-,-,-,-
+Model-free DQN agent with symbolic planning,256,0.00575,10000,0.2892,0.8037,8.352e-05,417,0.357,1.041e-05,-,-,-,0.8906,-,-,-,-,-,-,-
+Model-based DQN agent with symbolic planning,256,0.00575,10000,0.4395,0.5177,0.001725,569,0.01196,3.857e-06,10,256,1,0.3129,5,18,-,-,-,-,-
+Model-free DQN agent with neighbour experience with symbolic planning,256,0.002565,10000,0.5602,0.6109,0.0001085,554,0.0467,2.037e-09,-,-,-,0.3456,-,-,0.684,-,-,-,-
+Model-free SAC agent without symbolic planning,256,0.00575,10000,-,-,-,668,0.205,0.0112,-,-,-,-,-,-,-,0.00132,0.0002,0.343,0.847
+Model-based SAC agent without symbolic planning,256,0.00575,10000,-,-,-,225,0.1506,1.3e-09,10,256,1,-,1,16,-,9.639e-07,1.307e-08,0.2815,1.566
+Model-free SAC agent with neighbour experience without symbolic planning,256,0.005068,10000,-,-,-,319,0.3989,0.0002644,-,-,-,-,-,-,0.7416,2.607e-06,0.004906,0.7994,0.974
+Model-free SAC agent with symbolic planning,256,0.00575,10000,-,-,-,652,0.2575,0.02685,-,-,-,0.3706,-,-,-,0.002917,4.649e-05,0.8987,0.7017
+Model-based SAC agent with symbolic planning,256,0.00575,10000,-,-,-,246,0.1336,0.006974,10,256,1,0.8668,1,15,-,8.407e-05,9.536e-05,0.3593,0.5791
+Model-free SAC agent with neighbour experience with symbolic planning,256,0.05969,10000,-,-,-,227,0.1984,1.212e-06,-,-,-,0.5003,-,-,0.7836,0.0001246,2.333e-05,0.3987,0.3661
