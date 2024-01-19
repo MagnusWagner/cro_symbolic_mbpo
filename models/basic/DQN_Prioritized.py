@@ -126,7 +126,6 @@ class DeepQAgent(Agent):
         epsilon_decay_schdule (callable): function that takes episode number and returns 0 <= epsilon < 1.
         alpha (float): rate at which the target q-network parameters are updated.
         gamma (float): Controls how much that agent discounts future rewards (0 < gamma <= 1).
-        update_frequency (int): frequency (measured in time steps) with which q-network parameters are updated.
         seed (int): random seed
         
         """

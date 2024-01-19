@@ -65,6 +65,7 @@ def single_training_run(
         plot_flag = False,
         print_flag = True,
         pretrained_agent = None,
+        detailed_tracking_flag = False,
         seed = 43):
         
     
@@ -293,6 +294,9 @@ def single_training_run(
         else:
             _ = agent.learn_from_neighbour_buffer(pretrain_flag=True)
 
+    if detailed_tracking_flag:
+        rewards_list_list = []
+        episode_info_list_list = []
     for i_episode in tqdm(range(num_episodes)):
         evaluation_flag = i_episode % training_eval_ratio == 0
         total_reward = 0
@@ -317,7 +321,9 @@ def single_training_run(
             temperature_losses = []
         else:
             losses = []
-
+        if detailed_tracking_flag and not evaluation_flag:
+            rewards_list = []
+            episode_info_list = []
         # Run episode until done
         for t in count():
             # Action selection
@@ -465,6 +471,9 @@ def single_training_run(
 
             # Add single reward to total episodic reward
             total_reward += reward
+            if detailed_tracking_flag and not evaluation_flag:
+                rewards_list.append(reward)
+                episode_info_list.append(info)
 
             # Update filter information
             if not basic_flag:
@@ -483,6 +492,10 @@ def single_training_run(
 
         # Print results in console
         if not evaluation_flag:
+            if detailed_tracking_flag:
+                rewards_list_list.append(rewards_list)
+                episode_info_list_list.append(episode_info_list)
+
             if not only_filter and not random_flag:
                 if sac_flag:
                     if print_flag:
@@ -557,6 +570,14 @@ def single_training_run(
             "training_rewards":training_rewards,
             "cumulative_training_rewards":cumulative_training_rewards,
             "crops_selected_idxs_list":crops_selected_idxs_list
+        }
+
+    if detailed_tracking_flag:
+        results = {
+            "rewards_list_list":rewards_list_list,
+            "crops_selected_idxs_list":crops_selected_idxs_list,
+            "training_rewards":training_rewards,
+            "episode_info_list_list":episode_info_list_list
         }
     if mbrl_flag:
         return results, (agent, fake_env)
@@ -635,3 +656,102 @@ def check_filter(agent_type: str): #["prioritized_symbolic","sac_symbolic"]
     plt.ylabel('Reward')
     plt.show()
 
+
+
+def run_crop_rotation(
+        environment_type = "advanced",
+        num_episodes = 500,
+        training_eval_ratio = 10,
+        # Environment parameters
+        DryWetInit = None,
+        GroundTypeInit = None,
+        deterministic = None,
+        seq_len = 5,
+        crop_idxs = None,
+        detailed_tracking_flag = True,
+        seed = 43):
+        
+    assert crop_idxs is not None, "crop_idxs must be set."
+    random_state_env = np.random.RandomState(seed)
+    basic_flag = environment_type == "basic"
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    env = CropRotationEnv_Advanced(
+        seq_len = seq_len, 
+        random_state = random_state_env, 
+        DryWetInit = DryWetInit, 
+        GroundTypeInit = GroundTypeInit, 
+        deterministic = deterministic
+        )
+    agent = None
+    
+    evaluation_rewards = []
+    training_rewards = []
+    cumulative_training_reward = 0.0
+    cumulative_training_rewards = []
+    crops_selected_idxs_list = []
+
+    if detailed_tracking_flag:
+        rewards_list_list = []
+        episode_info_list_list = []
+
+    for i_episode in tqdm(range(num_episodes)):
+        evaluation_flag = i_episode % training_eval_ratio == 0
+        total_reward = 0
+        crops_selected = []
+        crops_selected_idxs = []
+        # Initialize the environment and get it's state
+        if not basic_flag:
+            state, filter_information = env.reset()
+        else:
+            state = env.reset()
+        if detailed_tracking_flag and not evaluation_flag:
+            rewards_list = []
+            episode_info_list = []
+        # Run episode until done
+        for t in count():
+            action = int(crop_idxs[t])
+            if not basic_flag:
+                observation, next_filter_information, reward, done, info = env.step(action)
+            else:
+                observation, reward, done, info = env.step(action)
+
+            # Add single reward to total episodic reward
+            total_reward += reward
+            if detailed_tracking_flag and not evaluation_flag:
+                rewards_list.append(reward)
+                episode_info_list.append(info)
+
+            # Add previous crop to list of crops selected
+            # Add CLOVER GRASS and ALFALFA twice (due to them being on the field for two years)
+            if info["Previous crop"] in ["CLOVER GRASS","ALFALFA"]: 
+                crops_selected.append(info["Previous crop"])
+            crops_selected.append(info["Previous crop"])
+            crops_selected_idxs.append(action)
+
+            # break if episode is done
+            if done:
+                break
+        if crops_selected_idxs != crop_idxs:
+            print("Crop idxs do not match.")
+            print("Crops selected:", crops_selected_idxs)
+            print("Crop idxs:", crop_idxs)
+        # Print results in console
+        if not evaluation_flag:
+            rewards_list_list.append(rewards_list)
+            episode_info_list_list.append(episode_info_list)
+            crops_selected_idxs_list.append(crops_selected_idxs)
+            training_rewards.append(total_reward)
+            cumulative_training_reward += total_reward
+            cumulative_training_rewards.append(cumulative_training_reward)
+        else:
+            evaluation_rewards.append(total_reward)
+    print('Complete')
+
+    results = {
+        "rewards_list_list":rewards_list_list,
+        "crops_selected_idxs_list":crops_selected_idxs_list,
+        "training_rewards":training_rewards,
+        "episode_info_list_list":episode_info_list_list
+    }
+    return results
