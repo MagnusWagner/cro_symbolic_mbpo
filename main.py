@@ -55,7 +55,7 @@ from experiments.utilities import check_filter
 # env_testing_advanced_sac_symbolic.test_run(
 #     num_episodes = 200, 
 #     DryWetInit = 1.0, 
-#     GroundTypeInit = 1.0, 
+#     GroundTypeInit = 0.0, 
 #     deterministic = True, 
 #     seq_len = 10, 
 #     seed = 42, 
@@ -231,5 +231,5 @@ from experiments.utilities import check_filter
 # gather_pretrained_evaluation_data()
 
 from experiments.evaluations.single_seed_detail_evaluation import single_seed_detail_evaluation, run_fixed_crop_rotation
-# single_seed_detail_evaluation()
-run_fixed_crop_rotation(ground_type = -1.0, drywet = 0.0, crop_idxs = [19, 23, 18, 17, 12, 19, 18, 23, 19, 18])
+single_seed_detail_evaluation()
+# run_fixed_crop_rotation(ground_type = -1.0, drywet = 0.0, crop_idxs = [19, 23, 18, 17, 12, 19, 18, 23, 19, 18])

@@ -23,13 +23,15 @@ import clingo
 pp = pprint.PrettyPrinter(indent=4)
 
 def single_seed_detail_evaluation():
-    SEEDS = [101,102,103,104,105,106,107,108,109,110]
+    SEEDS = [101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120]
+    # SEEDS = 
+    # SEEDS = [102]
     AGENT_TYPES = ["sac_symbolic"]
-    MBRL_KEYS = ["non-mbrl","neighbour"]
+    MBRL_KEYS = ["neighbour"]
     # GROUND_TYPES = [-1.0,0.0,1.0]
     # DRYWETS = [0.0,1.0]
-    GROUND_TYPES = [-1.0]
-    DRYWETS = [0.0]
+    GROUND_TYPES = [0.0]
+    DRYWETS = [1.0]
     NUM_RUNS = len(SEEDS)*len(AGENT_TYPES)*len(MBRL_KEYS)*len(GROUND_TYPES)*len(DRYWETS)
     print("Number of runs:",NUM_RUNS)
 
@@ -287,7 +289,7 @@ def run_fixed_crop_rotation(ground_type, drywet, crop_idxs):
             crop_idxs = crop_idxs,
             detailed_tracking_flag=True,
             seed = seed)
-        file_path = f"experiments/evaluations/results/detailed_foreign_croprota_{ground_type}_{drywet}_{seed}.pickle"
+        file_path = f"experiments/evaluations/results/detailed_fixed_croprota_{ground_type}_{drywet}_{seed}.pickle"
         with open(file_path, 'wb') as handle:
             pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
 

@@ -19,6 +19,12 @@ def convert_index_to_state(length, index):
   state[index] = 1.0
   return state
 
+ground_type_dict = {
+    -1.0: "light",
+    0.0: "medium",
+    1.0: "heavy"
+}
+
 print(os.getcwd())
 json_file_path = "./simulation_env/environment_maincrops/data/maincrops_updated.json"
 # Open and read the JSON file
@@ -94,7 +100,7 @@ class CropRotationEnv(Env):
         self.Week = 0
         # Select ground type: -1 = light, 0 = medium, 1 = heavy
         self.GroundTypeInit = GroundTypeInit
-        if self.GroundTypeInit:
+        if self.GroundTypeInit is not None:
             self.GroundType = self.GroundTypeInit
         else:
             self.GroundType = random_state.choice([-1.0,0.0,1.0])
@@ -106,7 +112,7 @@ class CropRotationEnv(Env):
         self.DryWetInit = DryWetInit
         self.DryWetProb = random_state.uniform(0.2,0.8)
         # Actual index, 1 = wet year, 0 = dry year
-        if self.DryWetInit:
+        if self.DryWetInit is not None:
             self.DryWet = self.DryWetInit
         else:
             self.DryWet = self.get_drywet(self.DryWetProb)
@@ -456,7 +462,7 @@ class CropRotationEnv(Env):
 
         ground_type_violation_flag = False
         # calculating the ground factor
-        if self.GroundType in self.maincrop_properties[crop_name]["ground type"]:
+        if ground_type_dict[self.GroundType] in self.maincrop_properties[crop_name]["ground type"]:
             ground_factor = 1.0
         else:
             ground_type_violation_flag = True
@@ -652,12 +658,12 @@ class CropRotationEnv(Env):
 
         self.Week = 0
         self.cropRotationSequenceLength = self.cropRotationSequenceLengthInit
-        if not self.GroundTypeInit:
+        if self.GroundTypeInit is None:
             self.GroundType = self.random_state.choice([-1.0,0.0,1.0])
         self.HumusInit = self.ground_humus_dict["initial_humus"][self.GroundType]
         self.Humus = self.HumusInit
         self.DryWetProb = self.random_state.uniform(0.2,0.8) # maybe change to stay the same
-        if not self.DryWetInit:
+        if self.DryWetInit is None:
             self.DryWet = self.get_drywet(self.DryWetProb)
 
         # Reset previous crops
