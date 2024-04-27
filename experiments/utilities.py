@@ -577,6 +577,7 @@ def single_training_run(
             "rewards_list_list":rewards_list_list,
             "crops_selected_idxs_list":crops_selected_idxs_list,
             "training_rewards":training_rewards,
+            "cumulative_training_rewards":cumulative_training_rewards,
             "episode_info_list_list":episode_info_list_list
         }
     if mbrl_flag:
@@ -752,6 +753,7 @@ def run_crop_rotation(
         "rewards_list_list":rewards_list_list,
         "crops_selected_idxs_list":crops_selected_idxs_list,
         "training_rewards":training_rewards,
+        "cumulative_training_rewards":cumulative_training_rewards,
         "episode_info_list_list":episode_info_list_list
     }
     return results

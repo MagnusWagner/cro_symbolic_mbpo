@@ -233,3 +233,4 @@ from experiments.utilities import check_filter
 from experiments.evaluations.single_seed_detail_evaluation import single_seed_detail_evaluation, run_fixed_crop_rotation
 single_seed_detail_evaluation()
 # run_fixed_crop_rotation(ground_type = -1.0, drywet = 0.0, crop_idxs = [19, 23, 18, 17, 12, 19, 18, 23, 19, 18])
+run_fixed_crop_rotation(ground_type = 0.0, drywet = 1.0)
