@@ -470,7 +470,6 @@ def run_optuna_study(
         neighbour_flag = False,
         num_neighbours = 20,
         neighbour_buffer_size = 5000,
-
         param_dict = {}
         ):
     symbolic_flag = "symbolic" in agent_type

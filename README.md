@@ -81,6 +81,17 @@ The complete simulation process is shown in the following figure:
 
 The step function receives an action as input. A raw yield value is sampled for the selected crop. Then, the factors representing soil conditions and potentially violated crop rules are calculated. The raw yield is multiplied with all factors to obtain the adapted yield. This yield value is multiplied with the current crop price and current costs are subtracted which results in the profit. After each step, the soil conditions are updated according to the selected action and adapted yield. Prices and costs are updated via a Geometric Brownian Motion process. The flattened matrix representing the last five cultivated crops is updated to include the newly selected crop. With each step from the environment, the agent receives a new reward represented by the profit and moves to a new state. State information contains nutrient levels, the current week in the year, the ground and humidity type, the humus ratio, variable costs for organic fertilizers, crop prices, fixed sowing and other costs and the one-hot encoded matrix representing the last five cultivated crops.
 
+#### Data
+
+The data used for the simulation environment can be found in the foler `simulation_env\environment_maincrops\data` in the following files:
+
+- `maincrops_updated.json`: For each crop: Average yields, costs & prices. Nutrient needs, N fixation values, botanical families, suitable planting season. 
+- `kolbe.py`: Kolbe crop suitability matrix
+- `cropbreaks.py`: Recommended crop breaks and maximum frequencies for each crop and botanical family.
+- ``
+- ``
+
+
 ### Experiments
 The experiments found in the ```/experiments``` folder train and evaluate the models proposed in the paper with different combinations of features. Besides the original model features and the symbolic planner, it can be chosen if a model-based reinforcement learning algorithm based on the MBPO (Janner et al. 2019) algorithm is used or if neighbour experience is inserted into the training.
 The parameterizable main function is found in  ```experiments\utilities.py```. The complete algorithm is depicted in the following figure schematically:
@@ -89,6 +100,31 @@ The parameterizable main function is found in  ```experiments\utilities.py```. T
 
 The state $S_t$ is fed into the RL agent and the symbolic planner. The planner also receives a list of constraints $c$ to adhere to. The RL agent infers a probabilistic policy $\pi$ for this state. The symbolic planner identifies actions which would violate constraints and filters them out of the restricted action space $A’$. The restricted actions are penalized in the policy to result in an adapted policy $\pi'$. During simulation, an action $a_t$ is sampled from the adapted policy. The environment returns a reward $r$ and a new state $S_{t+1}$. The full transition including previous state, selected action, reward, next state and filtered action space of the next state is added to the replay buffer. Additionally, the previous state $S_t$, the selected action $a_t$, the next state $S_{t+1}$ and the reward $r$ are used to update the dynamics model of the environment. With the help of the hybrid model for action selection, the dynamics model can plan for k-length predicted trajectories and fill the model experience buffer. The RL agent is updated by training on experience batches from the real experience buffer, the model experience buffer and the neighbour experience buffer.
 
-to be continued...
+The experiment code is found in the files in the ```experiment```-folder starting with ```env_testing_advanced```. For each agent type, an experiment is run with the following steps in function ```single_training_run()``` from the ```utilities.py``` file:
+
+1. Setting up the environment and the agent.
+2. (Filling the neighboiur experience buffer)
+3. (Pretraining the dynamics model)
+4. Training the agent on the environment and gathering training losses and results.
+5. Save the results.
+
+Additionally, the ```utilities.py``` file contains the function ```run_crop_rotation()``` to use the same crop rotation in each episode and track results.
+
+#### Hyperparameter Optimization
+To find suitable hyperparameters for training runs, a hyperparameter optimization pipeline from the optuna library is run for a defined maximum time and number of trials.
+The pipeline can be found in the `experiments/hyperparam_optimization.py` file.
+
+The results were saved manually in the file `experiments\evaluations\hyperparam_config.py`
+
+#### Evaluation
+
+To generate results for evaluation, the algorithms are runover 20 different seeds and different environment settings in the file `experiments\evaluations\gather_evaluation_data.py`.
+For a more detailled evaluation of individual episodes, the file `experiments\evaluations\single_seed_detail_evaluation.py` is run. 
+
+
 ### Visualizations
-to be continued...
+The visualizations for the research paper were created with the python notebook `visualizations.ipynb`.
+
+### Further questions
+If you have further questions about the project, please raise an issue in the repository.
+
